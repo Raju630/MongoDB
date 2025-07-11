@@ -205,3 +205,5 @@ document.addEventListener('DOMContentLoaded', () => {
         StudyApp.elements.mnemonicModal.querySelector('.modal-close').addEventListener('click', closeMnemonicModal);
     }
 });
+
+//test
