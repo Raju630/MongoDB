@@ -321,14 +321,22 @@ function startStudySession() {
         return;
     }
     
-    // THE FIX: Use localStorage to save the list. It persists across tabs.
-    localStorage.setItem('studyList', JSON.stringify(App.config.studyList));
+    // 1. Join the array of words into a single comma-separated string.
+    const wordsString = App.config.studyList.join(',');
+    
+    // 2. Encode the string so special characters work in a URL.
+    const encodedWords = encodeURIComponent(wordsString);
+    
+    // 3. Create the final URL with the words as a parameter.
+    const studyUrl = `/study?words=${encodedWords}`;
 
-    // This logic correctly handles opening the page.
+    // 4. Navigate using the appropriate method.
     if (window.matchMedia('(display-mode: standalone)').matches) {
-        window.location.href = '/study';
+        // PWA Mode: Navigate to the clean path
+        window.location.href = studyUrl;
     } else {
-        window.open('/study.html', '_blank'); // Use .html for browser reliability
+        // Browser Mode: Open the clean path in a new tab
+        window.open(studyUrl, '_blank');
     }
     
     toggleSelectionMode(); 

@@ -178,32 +178,46 @@ function closeMnemonicModal() {
 
 // NEW, CORRECTED DOMContentLoaded listener in study-session.js
 
+// In study-session.js
+
 document.addEventListener('DOMContentLoaded', () => {
-    // THE FIX: Get the list from localStorage.
-    const studyWordsList = JSON.parse(localStorage.getItem('studyList'));
+    // --- INITIALIZATION ---
+    let studyWordsList = [];
     
-    // Also get the main dictionary data, which is also in localStorage
+    // 1. Read the 'words' parameter from the current page's URL.
+    const urlParams = new URLSearchParams(window.location.search);
+    const wordsParam = urlParams.get('words');
+
+    if (wordsParam) {
+        // 2. Decode the parameter and split it back into an array.
+        const decodedWords = decodeURIComponent(wordsParam);
+        studyWordsList = decodedWords.split(',');
+    }
+
+    // 3. The N5_APP_DATA still needs to be loaded from localStorage.
+    // This contains the full dictionary to look up the words from the URL.
     const fullData = JSON.parse(localStorage.getItem('N5_APP_DATA'));
     
-    // Check if either the list OR the main dictionary is missing.
-    if (!studyWordsList || studyWordsList.length === 0 || !fullData || !fullData.dictionary) {
-        StudyApp.elements.container.innerHTML = '<h1>Error</h1><p>No study list found or dictionary data is missing. Please go back to the homepage and select words to study again.</p>';
+    // 4. Critical Check: Ensure both lists exist before continuing.
+    if (studyWordsList.length === 0 || !fullData || !fullData.dictionary) {
+        StudyApp.elements.container.innerHTML = '<h1>Error</h1><p>No study list found or dictionary data is missing. Please go back to the main page and select words to study again.</p>';
         return;
     }
 
-    // The rest of the function remains the same...
+    // --- Populate Global State (This part is crucial) ---
     StudyApp.data.dictionary = fullData.dictionary;
-    StudyApp.data.exampleSentences = fullData.exampleSentences;
+    StudyApp.data.exampleSentences = fullData.exampleSentences || []; // Ensure sentences array exists
     StudyApp.data.studyWords = studyWordsList;
+    StudyApp.data.practiceList = []; // Initialize empty practice list
 
     let currentStudyWord = null;
     
+    // --- The main function to build the page structure ---
     function renderStudyPage() {
-        // ... (the rest of your study page rendering logic)
-        // No changes are needed inside renderStudyPage or its helper functions.
+        // This function now correctly uses the data populated above
         let wordListHtml = StudyApp.data.studyWords.map(word => {
             const entry = StudyApp.data.dictionary[word];
-            if (!entry) return ''; // Add a check in case a word isn't found
+            if (!entry) return '';
             const hasEnglishTerm = !!entry.en;
             
             return `<div class="study-list-item">
@@ -243,6 +257,7 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
         `;
         
+        // Find and prepare the modals that are already in study.html
         StudyApp.elements.sentenceModal = document.getElementById('sentence-modal');
         StudyApp.elements.mnemonicModal = document.getElementById('mnemonic-modal');
 
@@ -283,19 +298,26 @@ document.addEventListener('DOMContentLoaded', () => {
         const btn = document.getElementById('show-study-meaning-btn');
         const cardContent = document.getElementById('flashcard-content');
         
-        cardContent.classList.add('flipping');
+        // This class is for a potential flip animation, which we can remove if not used.
+        cardContent.classList.add('flipping'); 
         setTimeout(() => {
             if (btn.textContent === 'Show Meaning') {
-                const { meaning } = StudyApp.data.dictionary[currentStudyWord];
-                cardContent.innerHTML = `<div class="meaning-display">${meaning}<span class="speak-icon" onclick="speakJapanese('${meaning}')">🔊</span></div>`;
-                btn.textContent = 'Show Word';
+                const entry = StudyApp.data.dictionary[currentStudyWord];
+                if(entry) {
+                    cardContent.innerHTML = `<div class="meaning-display">${entry.meaning}<span class="speak-icon" onclick="speakJapanese('${entry.meaning}')">🔊</span></div>`;
+                    btn.textContent = 'Show Word';
+                }
             } else {
                 cardContent.innerHTML = `<div class="word-display">${currentStudyWord}</div>`;
                 btn.textContent = 'Show Meaning';
             }
             cardContent.classList.remove('flipping');
-        }, 300);
+        }, 150); // Reduced timeout for faster flip
     }
     
+    // Initial render call
     renderStudyPage();
 });
+
+// IMPORTANT: All other functions like speakJapanese, showExampleSentences, etc., 
+// should remain untouched below this DOMContentLoaded block.
