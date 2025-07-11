@@ -311,31 +311,21 @@ function clearSelection() {
     document.getElementById('selected-count').textContent = 0;
 }
 
-// In dictionary.js -- The FINAL version of this function
-
-// In dictionary.js -- THE FINAL, SIMPLEST, CORRECTED VERSION
-
-// In dictionary.js -- FINAL, CORRECTED VERSION
+// In dictionary.js -- FINAL, SIMPLE, CORRECTED VERSION
 
 function startStudySession() {
     if (App.config.studyList.length === 0) {
         alert("Please select at least one word to start a practice session.");
         return;
     }
-
-    // 1. Create a data "package" with everything the study page needs.
-    const studyPackage = {
-        words: App.config.studyList,
-        dictionary: App.data.dictionary, // Send the whole dictionary
-        exampleSentences: App.data.exampleSentences, // Send all sentences
-        timestamp: Date.now()
-    };
-
-    // 2. Save this complete package to localStorage.
-    localStorage.setItem('studySessionData', JSON.stringify(studyPackage));
     
+    // 1. Join the words into a comma-separated string & encode for the URL.
+    const encodedWords = encodeURIComponent(App.config.studyList.join(','));
+    
+    // 2. Create the final URL. Using the direct file path is safest.
+    const studyUrl = `study.html?words=${encodedWords}`;
+
     // 3. Navigate.
-    const studyUrl = 'study.html';
     if (window.matchMedia('(display-mode: standalone)').matches) {
         window.location.href = studyUrl;
     } else {
