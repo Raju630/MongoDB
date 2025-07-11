@@ -1,21 +1,8 @@
 {
-  "trailingSlash": false,
-  "cleanUrls": true,
-  "redirects": [
-    {
-      "source": "/index.html",
-      "destination": "/",
-      "permanent": true
-    },
-    {
-      "source": "/developer.html",
-      "destination": "/developer",
-      "permanent": true
-    },
-    {
-      "source": "/lesson.html",
-      "destination": "/lesson",
-      "permanent": true
-    }
+  "rewrites": [
+    { "source": "/contact", "destination": "/developer.html" },
+    { "source": "/developer", "destination": "/developer.html" },
+    { "source": "/lesson", "destination": "/lesson.html" },
+    { "source": "/study", "destination": "/study.html" }
   ]
 }

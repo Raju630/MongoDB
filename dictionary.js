@@ -324,11 +324,11 @@ function startStudySession() {
     if (window.matchMedia('(display-mode: standalone)').matches) {
         // PWA Mode: Navigate within the same app window
         console.log("Running in PWA mode. Navigating internally.");
-        window.location.href = 'study.html';
+        window.location.href = '/study';
     } else {
         // Browser Mode: Open in a new tab for a better web experience
         console.log("Running in browser mode. Opening new tab.");
-        window.open('study.html', '_blank');
+        window.open('/study', '_blank');
     }
     
     toggleSelectionMode(); 
