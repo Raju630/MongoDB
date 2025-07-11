@@ -36,116 +36,49 @@ const App = {
 
 // --- 2. INITIALIZATION & DATA HANDLING ---
 
-document.addEventListener('DOMContentLoaded', async () => {
+// NEW, API-DRIVEN listener
+document.addEventListener('DOMContentLoaded', () => {
     const urlParams = new URLSearchParams(window.location.search);
     App.config.lessonId = urlParams.get('id');
 
-    await loadAppData();
-    renderApp();
+    // Render the basic app structure immediately
+    renderApp(); 
+    
+    // Then, fetch the necessary data from the API and render the word list
+    fetchAndRenderWords();
 });
 
-// NEW, AUTOMATED loadAppData function
-async function loadAppData() {
-    const savedDataStr = localStorage.getItem('N5_APP_DATA');
-    let savedData = null;
-    if (savedDataStr) {
-        try {
-            savedData = JSON.parse(savedDataStr);
-            // We now check for data headers, not manifest headers
-            if (!savedData.dataETag && !savedData.dataLastModified) {
-                savedData.dataETag = null;
-                savedData.dataLastModified = null;
-            }
-        } catch (e) {
-            console.error("Error parsing saved data, resetting.", e);
-            savedData = null;
-        }
+// NEW function to fetch data from the API
+async function fetchAndRenderWords(searchTerm = '') {
+    let apiUrl = '/api/words';
+    
+    // Check if we need data for a specific lesson, a search, or all words
+    if (searchTerm) {
+        apiUrl += `?search=${encodeURIComponent(searchTerm)}`;
+    } else if (App.config.lessonId) {
+        apiUrl += `?lesson=${App.config.lessonId}`;
     }
-
-    let shouldReSeed = false;
-    let currentDataETag = null;
-    let currentDataLastModified = null;
 
     try {
-        // CHANGED: We now send a lightweight HEAD request to the data file itself
-        const dataHeadResponse = await fetch('./data/full_data.json', { method: 'HEAD', cache: 'no-cache' });
-
-        if (!dataHeadResponse.ok) {
-            console.error("Failed to get headers for full_data.json. Cannot check for updates.", dataHeadResponse.status);
-            shouldReSeed = !savedData; // If we can't check, re-seed if there's no data
-        } else {
-            currentDataETag = dataHeadResponse.headers.get('etag');
-            currentDataLastModified = dataHeadResponse.headers.get('last-modified');
-
-            if (!savedData) {
-                console.log("No local data found. Seeding new data.");
-                shouldReSeed = true;
-            } else if (currentDataETag && savedData.dataETag !== currentDataETag) {
-                console.log("Data ETag mismatch. Re-seeding data.");
-                shouldReSeed = true;
-            } else if (currentDataLastModified && savedData.dataLastModified !== currentDataLastModified) {
-                console.log("Data Last-Modified mismatch. Re-seeding data.");
-                shouldReSeed = true;
-            } else {
-                shouldReSeed = false;
-            }
+        const response = await fetch(apiUrl);
+        if (!response.ok) {
+            throw new Error(`API request failed with status ${response.status}`);
         }
-    } catch (error) {
-        console.error("Error checking for data updates:", error);
-        shouldReSeed = !savedData;
-    }
+        const data = await response.json();
 
-    if (shouldReSeed) {
-        console.log("New data version detected. Re-seeding from server.");
-        
-        let preservedDictionary = {};
-        let preservedWeakWords = [];
+        // Update the global dictionary with the fetched data
+        // We use Object.assign to merge new data without deleting old data from other lessons
+        Object.assign(App.data.dictionary, data);
 
-        if (savedData) {
-            // Preserve user-added words (lesson 0)
-            for (const wordKey in savedData.dictionary) {
-                const wordData = savedData.dictionary[wordKey];
-                if (wordData.lesson === 0) {
-                    preservedDictionary[wordKey] = wordData;
-                }
-            }
-            preservedWeakWords = savedData.weakWords;
-        }
-
-        await seedInitialData(preservedDictionary, preservedWeakWords, currentDataETag, currentDataLastModified);
-    } else {
-        console.log(`Data is current. Loading from localStorage.`);
-        App.data = savedData;
-    }
-}
-
-// NEW, AUTOMATED seedInitialData function
-async function seedInitialData(preservedDictionary = {}, preservedWeakWords = [], dataETag = null, dataLastModified = null) {
-    console.log("Seeding initial data (from bundled file)...");
-    try {
-        const bundledDataResponse = await fetch('./data/full_data.json', { cache: 'no-cache' }); // Force network fetch
-        if (!bundledDataResponse.ok) throw new Error("Bundled data file missing or inaccessible.");
-        
-        const bundledData = await bundledDataResponse.json();
-        
-        let freshDictionary = bundledData.dictionary || {};
-        const freshExampleSentences = bundledData.exampleSentences || [];
-
-        // Merge preserved user-added words
-        Object.assign(freshDictionary, preservedDictionary);
-
-        App.data.dictionary = freshDictionary;
-        App.data.exampleSentences = freshExampleSentences;
-        // CHANGED: Store the data file's headers, not the manifest's
-        App.data.dataETag = dataETag;
-        App.data.dataLastModified = dataLastModified;
-        App.data.weakWords = preservedWeakWords.filter(word => App.data.dictionary.hasOwnProperty(word));
-        
-        saveAppData();
-        console.log("Data seeding and merge complete.");
+        // Render the word list with the new data
+        renderWordList(searchTerm); // Pass the searchTerm to filter the display
 
     } catch (error) {
-        console.error("A critical error occurred during data seeding:", error);
+        console.error("Failed to fetch words:", error);
+        const container = document.getElementById('word-list-container');
+        if (container) {
+            container.innerHTML = '<p style="text-align:center; color:#ff8a80;">Error: Could not load dictionary data.</p>';
+        }
     }
 }
 
@@ -220,7 +153,7 @@ function renderDictionaryTab() {
     document.getElementById('toggle-select-mode-btn').addEventListener('click', toggleSelectionMode);
     document.getElementById('start-study-btn').addEventListener('click', startStudySession);
     document.getElementById('clear-selection-btn').addEventListener('click', clearSelection);
-    document.getElementById('search-input').addEventListener('input', (e) => renderWordList(e.target.value));
+    document.getElementById('search-input').addEventListener('input', (e) => fetchAndRenderWords(e.target.value));
     document.getElementById('word-list-container').addEventListener('click', handleWordCardClick);
 }
 
@@ -422,25 +355,15 @@ function getWordPool() {
         : allWords;
 }
 
-function renderWordList(filter = '') {
+// UPDATED renderWordList function
+function renderWordList() {
     const container = document.getElementById('word-list-container');
     const title = document.getElementById('word-list-title');
     if (!container || !title) return;
 
+    // The data is now pre-filtered by the API, so we just get the keys
     let wordPool = getWordPool();
     title.textContent = App.config.lessonId ? `Words for Lesson ${App.config.lessonId}` : "All Words";
-
-    if (filter) {
-        const searchTerm = filter.toLowerCase();
-        wordPool = wordPool.filter(w => {
-            const wordData = App.data.dictionary[w];
-            if (!wordData) return false;
-            const banglaMatch = w.toLowerCase().includes(searchTerm);
-            const japaneseMatch = wordData.meaning.toLowerCase().includes(searchTerm);
-            const englishMatch = wordData.en && wordData.en.toLowerCase().includes(searchTerm);
-            return banglaMatch || japaneseMatch || englishMatch;
-        });
-    }
 
     container.innerHTML = '';
     if (wordPool.length === 0) {
@@ -483,79 +406,46 @@ function createWordCard(word) {
     return card;
 }
 
+// UPDATED showExampleSentences function
 async function showExampleSentences(banglaWord) {
     const wordData = App.data.dictionary[banglaWord];
-    if (!wordData || !wordData.en) {
-        alert("This word does not have an English key for sentence searching yet.");
-        return;
-    }
+    if (!wordData) return;
 
     const japaneseSearchTerm = wordData.meaning.replace(/\[.*?\]|～|、/g, '').trim();
-    
     const modal = App.elements.sentenceModal;
     const wordEl = modal.querySelector('#sentence-modal-word');
     const bodyEl = modal.querySelector('#sentence-modal-body');
 
     wordEl.textContent = japaneseSearchTerm;
-    bodyEl.innerHTML = '<p>Searching for example sentences...</p>';
+    bodyEl.innerHTML = '<p>Loading sentences...</p>';
     modal.style.display = 'flex';
 
-    function escapeRegExp(string) {
-        return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    }
-
-    // --- DEFINITIVE HYBRID SEARCH LOGIC ---
-
-    // 1. Prepare Japanese search term
-    const jpSearchRegex = new RegExp(escapeRegExp(japaneseSearchTerm), 'u');
-
-    // 2. Prepare English search terms
-    // This now creates an array of keywords, e.g., ["Japanese", "language"]
-    const englishKeywords = wordData.en
-        .replace(/\[.*?\]|\(.*?\)|~|,/g, '')
-        .trim()
-        .split(' ')
-        .filter(k => k.length > 0); // Remove any empty strings
-
-    const relevantSentences = App.data.exampleSentences.filter(sentence => {
-        // A sentence is a match only if BOTH conditions are met:
+    try {
+        // Call the new sentences API
+        const response = await fetch(`/api/sentences?term=${encodeURIComponent(japaneseSearchTerm)}`);
+        if (!response.ok) throw new Error("Failed to fetch sentences.");
         
-        // Condition A: The Japanese search term is in the Japanese sentence.
-        const isJapaneseMatch = jpSearchRegex.test(sentence.jp);
-        if (!isJapaneseMatch) {
-            return false;
-        }
+        const relevantSentences = await response.json();
 
-        // Condition B: AT LEAST ONE of the English keywords is in the English sentence.
-        let isEnglishMatch = false;
-        if (englishKeywords.length > 0 && sentence.en) {
-            isEnglishMatch = englishKeywords.some(keyword => {
-                const enSearchRegex = new RegExp(`\\b${escapeRegExp(keyword)}\\b`, 'i');
-                return enSearchRegex.test(sentence.en);
-            });
-        }
-        
-        return isEnglishMatch;
-    });
-    
-    // --- END OF SEARCH LOGIC ---
-
-    if (relevantSentences.length === 0) {
-        bodyEl.innerHTML = `<p style="color: #ffcdd2;">No example sentences found for "${japaneseSearchTerm}".</p>`;
-    } else {
-        let html = `<h2>Examples for "${japaneseSearchTerm}"</h2>`;
-        relevantSentences.forEach((s, index) => {
+        if (relevantSentences.length === 0) {
+            bodyEl.innerHTML = `<p style="color: #ffcdd2;">No example sentences found for "${japaneseSearchTerm}".</p>`;
+        } else {
             const highlightRegex = new RegExp(escapeRegExp(japaneseSearchTerm), 'g');
-            const highlightedSentence = s.jp.replace(highlightRegex, `<strong>${japaneseSearchTerm}</strong>`);
-
-            html += `
-                <div class="sentence-entry">
-                    <p class="sentence-japanese">${index + 1}. ${highlightedSentence} <span class="speak-icon" onclick="speakJapanese('${s.jp.replace(/'/g, "\\'")}')">🔊</span></p>
-                    <p class="sentence-bangla">(${s.bn})</p>
-                </div>
-            `;
-        });
-        bodyEl.innerHTML = html;
+            let html = `<h2>Examples for "${japaneseSearchTerm}"</h2>`;
+            relevantSentences.forEach((s, index) => {
+                const highlightedSentence = s.jp.replace(highlightRegex, `<strong>${japaneseSearchTerm}</strong>`);
+                html += `
+                    <div class="sentence-entry">
+                        <p class="sentence-japanese">${index + 1}. ${highlightedSentence} <span class="speak-icon" onclick="speakJapanese('${s.jp.replace(/'/g, "\\'")}')">🔊</span></p>
+                        <p class="sentence-bangla">(${s.bn})</p>
+                    </div>
+                `;
+            });
+            bodyEl.innerHTML = html;
+        }
+    } catch (error) {
+        console.error("Error fetching sentences:", error);
+        bodyEl.innerHTML = `<p style="color: #ffcdd2;">Could not load sentences.</p>`;
     }
 }
 function escapeRegExp(string) {
