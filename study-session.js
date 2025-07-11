@@ -43,9 +43,10 @@ async function showExampleSentences(banglaWord) {
     const bodyEl = modal.querySelector('#sentence-modal-body');
 
     wordEl.textContent = japaneseSearchTerm;
-    bodyEl.innerHTML = '<p>Loading sentences...</p>';
+    bodyEl.innerHTML = '<p>Searching for example sentences...</p>';
     modal.style.display = 'flex';
 
+    // The exampleSentences array is now available in StudyApp.data
     const relevantSentences = StudyApp.data.exampleSentences.filter(sentence => {
         const searchRegex = new RegExp(escapeRegExp(japaneseSearchTerm), 'u');
         return searchRegex.test(sentence.jp);
@@ -101,41 +102,38 @@ function closeMnemonicModal() {
     if (StudyApp.elements.mnemonicModal) StudyApp.elements.mnemonicModal.style.display = 'none';
 }
 
+
 // --- MAIN APP LOGIC ---
 document.addEventListener('DOMContentLoaded', () => {
     
     // --- DATA INITIALIZATION ---
-    let studyWordsList = [];
-    
-    // 1. Read the 'words' parameter from the current page's URL.
-    const urlParams = new URLSearchParams(window.location.search);
-    const wordsParam = urlParams.get('words');
+    const studyPackageStr = localStorage.getItem('studySessionData');
 
-    if (wordsParam) {
-        // 2. Decode the parameter and split it back into an array.
-        try {
-            const decodedWords = decodeURIComponent(wordsParam);
-            studyWordsList = decodedWords.split(',');
-        } catch (e) {
-            console.error("Error decoding URL parameter:", e);
-        }
-    }
-
-    // 3. The main N5_APP_DATA MUST exist in localStorage for this page to work.
-    const mainDataStr = localStorage.getItem('N5_APP_DATA');
-
-    if (studyWordsList.length === 0 || !mainDataStr) {
-        StudyApp.elements.container.innerHTML = '<h1>Error</h1><p>No study list found. Please go back to the main page and select your words again.</p>';
+    if (!studyPackageStr) {
+        StudyApp.elements.container.innerHTML = '<h1>Error</h1><p>No study session data found. Please go back to the main page and start a new session.</p>';
         return;
     }
 
     try {
-        const mainData = JSON.parse(mainDataStr);
-        StudyApp.data.dictionary = mainData.dictionary || {};
-        StudyApp.data.exampleSentences = mainData.exampleSentences || [];
-        StudyApp.data.studyWords = studyWordsList;
+        const studyPackage = JSON.parse(studyPackageStr);
+        
+        // Populate all necessary data from the package
+        StudyApp.data.studyWords = studyPackage.words || [];
+        StudyApp.data.dictionary = studyPackage.dictionary || {};
+        StudyApp.data.exampleSentences = studyPackage.exampleSentences || [];
+
+        // Clean up immediately after successful use
+        localStorage.removeItem('studySessionData');
+
     } catch (e) {
-        StudyApp.elements.container.innerHTML = '<h1>Error</h1><p>Could not load main dictionary data. It might be corrupted. Please reset the app from the settings tab on the main page.</p>';
+        StudyApp.elements.container.innerHTML = '<h1>Error</h1><p>Could not load study data. It might be corrupted. Please start a new session.</p>';
+        // Also clean up in case of error
+        localStorage.removeItem('studySessionData');
+        return;
+    }
+
+    if (StudyApp.data.studyWords.length === 0) {
+        StudyApp.elements.container.innerHTML = '<h1>Error</h1><p>The selected study list is empty. Please go back and select words to study.</p>';
         return;
     }
 
@@ -172,9 +170,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         currentStudyWord = StudyApp.data.practiceList.pop();
-        if (!currentStudyWord) { // Handle case where list becomes empty
+        if (!currentStudyWord) {
             getBtn.textContent = 'Start Over';
             document.getElementById('flashcard-content').innerHTML = '<p>Round complete! Click "Start Over" to practice again.</p>';
+            document.getElementById('show-study-meaning-btn').style.display = 'none';
             return;
         }
 
@@ -205,7 +204,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
-    // Initial render call and modal listener setup
     renderStudyPage();
 
     if (StudyApp.elements.sentenceModal) {

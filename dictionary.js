@@ -315,47 +315,40 @@ function clearSelection() {
 
 // In dictionary.js -- THE FINAL, SIMPLEST, CORRECTED VERSION
 
+// In dictionary.js -- FINAL, CORRECTED VERSION
+
 function startStudySession() {
     if (App.config.studyList.length === 0) {
         alert("Please select at least one word to start a practice session.");
         return;
     }
-    
-    // 1. Join the words into a comma-separated string.
-    const wordsString = App.config.studyList.join(',');
-    
-    // 2. Encode the string to make it safe for a URL.
-    const encodedWords = encodeURIComponent(wordsString);
-    
-    // 3. Create the final URL. We use the direct file path to be safe.
-    const studyUrl = `study.html?words=${encodedWords}`;
 
-    // 4. Navigate.
+    // 1. Create a data "package" with everything the study page needs.
+    const studyPackage = {
+        words: App.config.studyList,
+        dictionary: App.data.dictionary, // Send the whole dictionary
+        exampleSentences: App.data.exampleSentences, // Send all sentences
+        timestamp: Date.now()
+    };
+
+    // 2. Save this complete package to localStorage.
+    localStorage.setItem('studySessionData', JSON.stringify(studyPackage));
+    
+    // 3. Navigate.
+    const studyUrl = 'study.html';
     if (window.matchMedia('(display-mode: standalone)').matches) {
         window.location.href = studyUrl;
     } else {
         window.open(studyUrl, '_blank');
     }
     
-    // We clear the selection *after* navigating to prevent race conditions.
     toggleSelectionMode(); 
 }
 
-// And ensure this is also in your dictionary.js DOMContentLoaded listener
+// In dictionary.js, inside the DOMContentLoaded listener
 document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') {
-        if (App.config.isSelectionMode) {
-            toggleSelectionMode(); // This will call clearSelection()
-        }
-    }
-});
-// ALSO, add this small piece of code inside the main DOMContentLoaded listener
-// in dictionary.js. This will clear the selection when the user comes back to the page.
-document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') {
-        if (App.config.isSelectionMode) {
-            toggleSelectionMode(); // This will call clearSelection()
-        }
+    if (document.visibilityState === 'visible' && App.config.isSelectionMode) {
+        toggleSelectionMode();
     }
 });
 function toggleWeakWordMeaning() {
