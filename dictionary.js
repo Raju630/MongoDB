@@ -311,21 +311,27 @@ function clearSelection() {
     document.getElementById('selected-count').textContent = 0;
 }
 
-// In dictionary.js -- FINAL, SIMPLE, CORRECTED VERSION
+// In dictionary.js -- FINAL, CORRECTED VERSION
 
 function startStudySession() {
     if (App.config.studyList.length === 0) {
         alert("Please select at least one word to start a practice session.");
         return;
     }
-    
-    // 1. Join the words into a comma-separated string & encode for the URL.
-    const encodedWords = encodeURIComponent(App.config.studyList.join(','));
-    
-    // 2. Create the final URL. Using the direct file path is safest.
-    const studyUrl = `study.html?words=${encodedWords}`;
 
-    // 3. Navigate.
+    // 1. Create a data "package" with everything the study page needs.
+    const studyPackage = {
+        words: App.config.studyList,
+        dictionary: App.data.dictionary, // Send the whole dictionary
+        exampleSentences: App.data.exampleSentences, // Send all sentences
+        timestamp: Date.now()
+    };
+
+    // 2. Save this complete package to localStorage.
+    localStorage.setItem('studySessionData', JSON.stringify(studyPackage));
+    
+    // 3. Navigate. Using the direct file path is safest.
+    const studyUrl = 'study.html';
     if (window.matchMedia('(display-mode: standalone)').matches) {
         window.location.href = studyUrl;
     } else {
@@ -334,6 +340,14 @@ function startStudySession() {
     
     toggleSelectionMode(); 
 }
+
+// Add this to your main DOMContentLoaded listener in dictionary.js to handle clearing the selection
+// when the user returns to the tab.
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && App.config.isSelectionMode) {
+        toggleSelectionMode();
+    }
+});
 
 // In dictionary.js, inside the DOMContentLoaded listener
 document.addEventListener('visibilitychange', () => {

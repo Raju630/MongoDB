@@ -33,7 +33,7 @@ function escapeRegExp(string) {
     return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-async function showExampleSentences(banglaWord) {
+function showExampleSentences(banglaWord) {
     const wordData = StudyApp.data.dictionary[banglaWord];
     if (!wordData) return;
     
@@ -46,26 +46,22 @@ async function showExampleSentences(banglaWord) {
     bodyEl.innerHTML = '<p>Loading sentences...</p>';
     modal.style.display = 'flex';
 
-    try {
-        const response = await fetch(`/api/sentences?term=${encodeURIComponent(japaneseSearchTerm)}`);
-        if (!response.ok) throw new Error('Failed to fetch sentences from API.');
-        
-        const relevantSentences = await response.json();
-        
-        if (relevantSentences.length === 0) {
-            bodyEl.innerHTML = `<p style="color: #ffcdd2;">No example sentences found.</p>`;
-        } else {
-            const highlightRegex = new RegExp(escapeRegExp(japaneseSearchTerm), 'g');
-            let html = `<h2>Examples for "${japaneseSearchTerm}"</h2>`;
-            relevantSentences.forEach((s, index) => {
-                const highlightedSentence = s.jp.replace(highlightRegex, `<strong>${japaneseSearchTerm}</strong>`);
-                html += `<div class="sentence-entry"><p class="sentence-japanese">${index + 1}. ${highlightedSentence} <span class="speak-icon" onclick="speakJapanese('${s.jp.replace(/'/g, "\\'")}')">🔊</span></p><p class="sentence-bangla">(${s.bn})</p></div>`;
-            });
-            bodyEl.innerHTML = html;
-        }
-    } catch(e) {
-        bodyEl.innerHTML = `<p style="color: #ffcdd2;">Error loading sentences.</p>`;
-        console.error(e);
+    // Search the exampleSentences array that is now correctly populated
+    const relevantSentences = StudyApp.data.exampleSentences.filter(sentence => {
+        const searchRegex = new RegExp(escapeRegExp(japaneseSearchTerm), 'u');
+        return searchRegex.test(sentence.jp);
+    });
+    
+    if (relevantSentences.length === 0) {
+        bodyEl.innerHTML = `<p style="color: #ffcdd2;">No example sentences found for "${japaneseSearchTerm}".</p>`;
+    } else {
+        const highlightRegex = new RegExp(escapeRegExp(japaneseSearchTerm), 'g');
+        let html = `<h2>Examples for "${japaneseSearchTerm}"</h2>`;
+        relevantSentences.forEach((s, index) => {
+            const highlightedSentence = s.jp.replace(highlightRegex, `<strong>${japaneseSearchTerm}</strong>`);
+            html += `<div class="sentence-entry"><p class="sentence-japanese">${index + 1}. ${highlightedSentence} <span class="speak-icon" onclick="speakJapanese('${s.jp.replace(/'/g, "\\'")}')">🔊</span></p><p class="sentence-bangla">(${s.bn})</p></div>`;
+        });
+        bodyEl.innerHTML = html;
     }
 }
 
@@ -108,46 +104,37 @@ function closeMnemonicModal() {
 
 
 // --- MAIN APP LOGIC ---
-document.addEventListener('DOMContentLoaded', async () => {
+document.addEventListener('DOMContentLoaded', () => {
     
     // --- DATA INITIALIZATION ---
-    let studyWordsList = [];
-    const urlParams = new URLSearchParams(window.location.search);
-    const wordsParam = urlParams.get('words');
+    const studyPackageStr = localStorage.getItem('studySessionData');
 
-    if (wordsParam) {
-        try {
-            studyWordsList = decodeURIComponent(wordsParam).split(',');
-        } catch (e) {
-            console.error("Error decoding URL parameter:", e);
-        }
-    }
-
-    if (studyWordsList.length === 0) {
-        StudyApp.elements.container.innerHTML = '<h1>Error</h1><p>No study list found in URL. Please go back and select words to study again.</p>';
+    if (!studyPackageStr) {
+        StudyApp.elements.container.innerHTML = '<h1>Error</h1><p>No study session data found. Please go back to the main page and start a new session.</p>';
         return;
     }
 
     try {
-        // Fetch ALL data needed for this page to be self-sufficient
-        const wordsResponse = await fetch(`/api/words`); // Fetch the entire dictionary
-        if (!wordsResponse.ok) throw new Error('Could not fetch dictionary from API.');
+        const studyPackage = JSON.parse(studyPackageStr);
         
-        StudyApp.data.dictionary = await wordsResponse.json();
-        StudyApp.data.studyWords = studyWordsList;
+        // Populate all necessary data from the package
+        StudyApp.data.studyWords = studyPackage.words || [];
+        StudyApp.data.dictionary = studyPackage.dictionary || {};
+        StudyApp.data.exampleSentences = studyPackage.exampleSentences || []; // CRITICAL: This was missing
 
-        // Ensure all words from the study list actually exist in the fetched dictionary
-        StudyApp.data.studyWords = StudyApp.data.studyWords.filter(word => StudyApp.data.dictionary[word]);
-
-        if (StudyApp.data.studyWords.length === 0) {
-           throw new Error("Words from study list were not found in the main dictionary.");
+        if (StudyApp.data.studyWords.length === 0 || Object.keys(StudyApp.data.dictionary).length === 0) {
+            throw new Error("Study package is missing essential data.");
         }
 
+        // Clean up immediately after successful use
+        localStorage.removeItem('studySessionData');
+
     } catch (e) {
-        StudyApp.elements.container.innerHTML = `<h1>Error</h1><p>Could not load necessary data. ${e.message}</p>`;
+        StudyApp.elements.container.innerHTML = `<h1>Error</h1><p>Could not load study data: ${e.message}. Please start a new session.</p>`;
+        localStorage.removeItem('studySessionData');
         return;
     }
-    
+
     // --- RENDER & LOGIC ---
     let currentStudyWord = null;
 
