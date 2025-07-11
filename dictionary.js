@@ -311,13 +311,7 @@ function clearSelection() {
     document.getElementById('selected-count').textContent = 0;
 }
 
-// NEW, CORRECTED startStudySession function in dictionary.js
-
-// In dictionary.js
-
-// In dictionary.js
-
-// In dictionary.js
+// In dictionary.js -- The FINAL version of this function
 
 function startStudySession() {
     if (App.config.studyList.length === 0) {
@@ -325,21 +319,33 @@ function startStudySession() {
         return;
     }
 
-    // 1. Create a data "package" with the words and a timestamp.
+    // 1. Create a dedicated dictionary object ONLY for the selected words.
+    const studyDictionary = {};
+    App.config.studyList.forEach(word => {
+        if (App.data.dictionary[word]) {
+            studyDictionary[word] = App.data.dictionary[word];
+        }
+    });
+
+    // 2. Create the data "package"
     const studyPackage = {
         words: App.config.studyList,
-        timestamp: Date.now() // The current time in milliseconds
+        dictionary: studyDictionary, // Include the mini-dictionary
+        // We no longer need the full example sentences here, to keep it small
     };
 
-    // 2. Save this package to localStorage.
+    // 3. Save this package to localStorage. This is the most reliable method.
     localStorage.setItem('studySessionData', JSON.stringify(studyPackage));
     
-    // 3. Navigate.
+    // 4. Navigate.
+    const studyUrl = 'study.html'; // We will use the direct file path to be safe.
     if (window.matchMedia('(display-mode: standalone)').matches) {
-        window.location.href = '/study';
+        window.location.href = studyUrl;
     } else {
-        window.open('/study', '_blank');
+        window.open(studyUrl, '_blank');
     }
+    
+    toggleSelectionMode(); 
 }
 
 // And ensure this is also in your dictionary.js DOMContentLoaded listener
