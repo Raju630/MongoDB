@@ -1,8 +1,21 @@
 {
+  "trailingSlash": false,
+  "cleanUrls": true,
+  "redirects": [
+    {
+      "source": "/index.html",
+      "destination": "/",
+      "permanent": true
+    }
+  ],
   "rewrites": [
     { "source": "/contact", "destination": "/developer.html" },
     { "source": "/developer", "destination": "/developer.html" },
     { "source": "/lesson", "destination": "/lesson.html" },
-    { "source": "/study", "destination": "/study.html" }
+    { "source": "/study", "destination": "/study.html" },
+    {
+      "source": "/((?!api/|data/|assets/|images/).*)",
+      "destination": "/index.html"
+    }
   ]
 }
