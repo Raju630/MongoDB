@@ -313,38 +313,31 @@ function clearSelection() {
 
 // In dictionary.js -- The FINAL version of this function
 
+// In dictionary.js -- THE FINAL, SIMPLEST, CORRECTED VERSION
+
 function startStudySession() {
     if (App.config.studyList.length === 0) {
         alert("Please select at least one word to start a practice session.");
         return;
     }
-
-    // 1. Create a dedicated dictionary object ONLY for the selected words.
-    const studyDictionary = {};
-    App.config.studyList.forEach(word => {
-        if (App.data.dictionary[word]) {
-            studyDictionary[word] = App.data.dictionary[word];
-        }
-    });
-
-    // 2. Create the data "package"
-    const studyPackage = {
-        words: App.config.studyList,
-        dictionary: studyDictionary, // Include the mini-dictionary
-        // We no longer need the full example sentences here, to keep it small
-    };
-
-    // 3. Save this package to localStorage. This is the most reliable method.
-    localStorage.setItem('studySessionData', JSON.stringify(studyPackage));
     
+    // 1. Join the words into a comma-separated string.
+    const wordsString = App.config.studyList.join(',');
+    
+    // 2. Encode the string to make it safe for a URL.
+    const encodedWords = encodeURIComponent(wordsString);
+    
+    // 3. Create the final URL. We use the direct file path to be safe.
+    const studyUrl = `study.html?words=${encodedWords}`;
+
     // 4. Navigate.
-    const studyUrl = 'study.html'; // We will use the direct file path to be safe.
     if (window.matchMedia('(display-mode: standalone)').matches) {
         window.location.href = studyUrl;
     } else {
         window.open(studyUrl, '_blank');
     }
     
+    // We clear the selection *after* navigating to prevent race conditions.
     toggleSelectionMode(); 
 }
 

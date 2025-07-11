@@ -1,10 +1,10 @@
-// study-session.js (FINAL, SELF-CONTAINED, AND CORRECTED)
+// study-session.js (FINAL, COMPLETE, AND CORRECTED)
 
 // --- GLOBAL STATE for this page ---
 const StudyApp = {
     data: {
-        dictionary: {}, // Will be populated from the study package
-        exampleSentences: [], // Will be populated from main storage
+        dictionary: {},
+        exampleSentences: [],
         studyWords: [],
         practiceList: []
     },
@@ -19,7 +19,6 @@ const StudyApp = {
 };
 
 // --- GLOBAL HELPER FUNCTIONS ---
-
 function speakJapanese(text) {
     if ('speechSynthesis' in window) {
         window.speechSynthesis.cancel();
@@ -102,36 +101,41 @@ function closeMnemonicModal() {
     if (StudyApp.elements.mnemonicModal) StudyApp.elements.mnemonicModal.style.display = 'none';
 }
 
-
 // --- MAIN APP LOGIC ---
 document.addEventListener('DOMContentLoaded', () => {
     
     // --- DATA INITIALIZATION ---
-    const studyPackageStr = localStorage.getItem('studySessionData');
+    let studyWordsList = [];
+    
+    // 1. Read the 'words' parameter from the current page's URL.
+    const urlParams = new URLSearchParams(window.location.search);
+    const wordsParam = urlParams.get('words');
+
+    if (wordsParam) {
+        // 2. Decode the parameter and split it back into an array.
+        try {
+            const decodedWords = decodeURIComponent(wordsParam);
+            studyWordsList = decodedWords.split(',');
+        } catch (e) {
+            console.error("Error decoding URL parameter:", e);
+        }
+    }
+
+    // 3. The main N5_APP_DATA MUST exist in localStorage for this page to work.
     const mainDataStr = localStorage.getItem('N5_APP_DATA');
 
-    if (!studyPackageStr || !mainDataStr) {
-        StudyApp.elements.container.innerHTML = '<h1>Error</h1><p>No study data found. Please go back to the main page and start a new session.</p>';
+    if (studyWordsList.length === 0 || !mainDataStr) {
+        StudyApp.elements.container.innerHTML = '<h1>Error</h1><p>No study list found. Please go back to the main page and select your words again.</p>';
         return;
     }
 
     try {
-        const studyPackage = JSON.parse(studyPackageStr);
         const mainData = JSON.parse(mainDataStr);
-        
-        StudyApp.data.studyWords = studyPackage.words || [];
-        StudyApp.data.dictionary = studyPackage.dictionary || {};
+        StudyApp.data.dictionary = mainData.dictionary || {};
         StudyApp.data.exampleSentences = mainData.exampleSentences || [];
-
-        // Clean up immediately after use
-        localStorage.removeItem('studySessionData');
+        StudyApp.data.studyWords = studyWordsList;
     } catch (e) {
-        StudyApp.elements.container.innerHTML = '<h1>Error</h1><p>Could not load study data. It might be corrupted. Please start a new session.</p>';
-        return;
-    }
-
-    if (StudyApp.data.studyWords.length === 0) {
-        StudyApp.elements.container.innerHTML = '<h1>Error</h1><p>The selected study list is empty. Please go back and select words to study.</p>';
+        StudyApp.elements.container.innerHTML = '<h1>Error</h1><p>Could not load main dictionary data. It might be corrupted. Please reset the app from the settings tab on the main page.</p>';
         return;
     }
 
@@ -168,6 +172,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         currentStudyWord = StudyApp.data.practiceList.pop();
+        if (!currentStudyWord) { // Handle case where list becomes empty
+            getBtn.textContent = 'Start Over';
+            document.getElementById('flashcard-content').innerHTML = '<p>Round complete! Click "Start Over" to practice again.</p>';
+            return;
+        }
+
         const content = document.getElementById('flashcard-content');
         content.innerHTML = `<div class="word-display">${currentStudyWord}</div>`;
         
@@ -205,5 +215,3 @@ document.addEventListener('DOMContentLoaded', () => {
         StudyApp.elements.mnemonicModal.querySelector('.modal-close').addEventListener('click', closeMnemonicModal);
     }
 });
-
-//test
