@@ -311,24 +311,30 @@ function clearSelection() {
     document.getElementById('selected-count').textContent = 0;
 }
 
-// NEW, CORRECTED CODE
+// NEW, CORRECTED startStudySession function in dictionary.js
+
 function startStudySession() {
     if (App.config.studyList.length === 0) {
         alert("Please select at least one word to start a practice session.");
         return;
     }
     
-    localStorage.setItem('studyList', JSON.stringify(App.config.studyList));
+    // 1. Join the array of words into a single comma-separated string.
+    const wordsString = App.config.studyList.join(',');
+    
+    // 2. Encode the string so special characters work in a URL.
+    const encodedWords = encodeURIComponent(wordsString);
+    
+    // 3. Create the final URL with the words as a parameter.
+    const studyUrl = `/study?words=${encodedWords}`;
 
-    // Check if the app is running in standalone (PWA) mode
+    // 4. Navigate using the appropriate method.
     if (window.matchMedia('(display-mode: standalone)').matches) {
         // PWA Mode: Navigate within the same app window
-        console.log("Running in PWA mode. Navigating internally.");
-        window.location.href = '/study';
+        window.location.href = studyUrl;
     } else {
-        // Browser Mode: Open in a new tab for a better web experience
-        console.log("Running in browser mode. Opening new tab.");
-        window.open('/study', '_blank');
+        // Browser Mode: Open in a new tab
+        window.open(studyUrl, '_blank');
     }
     
     toggleSelectionMode(); 

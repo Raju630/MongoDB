@@ -176,25 +176,44 @@ function closeMnemonicModal() {
 }
 
 
+// NEW, CORRECTED DOMContentLoaded listener in study-session.js
+
 document.addEventListener('DOMContentLoaded', () => {
     // --- INITIALIZATION ---
-    const studyWordsList = JSON.parse(localStorage.getItem('studyList'));
+    let studyWordsList = [];
+    
+    // 1. Read the 'words' parameter from the current page's URL.
+    const urlParams = new URLSearchParams(window.location.search);
+    const wordsParam = urlParams.get('words');
+
+    if (wordsParam) {
+        // 2. Decode the parameter and split it back into an array.
+        const decodedWords = decodeURIComponent(wordsParam);
+        studyWordsList = decodedWords.split(',');
+    }
+
+    // 3. The N5_APP_DATA still needs to be loaded from localStorage.
+    // This contains the full dictionary to look up the words from the URL.
     const fullData = JSON.parse(localStorage.getItem('N5_APP_DATA'));
     
-    if (!studyWordsList || studyWordsList.length === 0 || !fullData) {
-        StudyApp.elements.container.innerHTML = '<h1>Error</h1><p>No study list found. Please go back and select words to study.</p>';
+    if (studyWordsList.length === 0 || !fullData) {
+        StudyApp.elements.container.innerHTML = '<h1>Error</h1><p>No study list found or dictionary data is missing. Please go back and select words to study.</p>';
         return;
     }
 
+    // The rest of the function remains the same...
     StudyApp.data.dictionary = fullData.dictionary;
     StudyApp.data.exampleSentences = fullData.exampleSentences;
     StudyApp.data.studyWords = studyWordsList;
 
     let currentStudyWord = null;
-
+    
     function renderStudyPage() {
+        // ... (the rest of your study page rendering logic)
+        // No changes are needed inside renderStudyPage or its helper functions.
         let wordListHtml = StudyApp.data.studyWords.map(word => {
             const entry = StudyApp.data.dictionary[word];
+            if (!entry) return ''; // Add a check in case a word isn't found
             const hasEnglishTerm = !!entry.en;
             
             return `<div class="study-list-item">
@@ -234,7 +253,6 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
         `;
         
-        // FIX: Find and prepare the modals that are already in study.html
         StudyApp.elements.sentenceModal = document.getElementById('sentence-modal');
         StudyApp.elements.mnemonicModal = document.getElementById('mnemonic-modal');
 
@@ -288,7 +306,6 @@ document.addEventListener('DOMContentLoaded', () => {
             cardContent.classList.remove('flipping');
         }, 300);
     }
-
-    // Initial render
+    
     renderStudyPage();
 });
