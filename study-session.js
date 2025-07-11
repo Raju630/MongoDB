@@ -1,6 +1,4 @@
-// study-session.js
-
-// This script runs only on the study.html page
+// study-session.js (FINAL, COMPLETE, AND CORRECTED)
 
 // --- GLOBAL STATE for this page ---
 const StudyApp = {
@@ -12,15 +10,15 @@ const StudyApp = {
     },
     elements: {
         container: document.getElementById('study-app-container'),
-        sentenceModal: null, // Will be assigned on DOMContentLoaded
-        mnemonicModal: null, // Will be assigned on DOMContentLoaded
+        sentenceModal: document.getElementById('sentence-modal'),
+        mnemonicModal: document.getElementById('mnemonic-modal'),
     },
     config: {
         pexelsApiKey: '0YZ1YqOAGmfXwoIBl7elGumGGMYqwrOJgwqyqstQuMEGtyPJjiFFNr3K'
     }
 };
 
-// --- CORE FUNCTIONS (callable from HTML) ---
+// --- GLOBAL HELPER FUNCTIONS (callable from HTML) ---
 
 function speakJapanese(text) {
     if ('speechSynthesis' in window) {
@@ -32,75 +30,44 @@ function speakJapanese(text) {
     }
 }
 
+function escapeRegExp(string) {
+    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 async function showExampleSentences(banglaWord) {
-    const japaneseMeaningWithGrammar = StudyApp.data.dictionary[banglaWord]?.meaning;
-    if (!japaneseMeaningWithGrammar) {
-        alert("Could not find the Japanese translation for this word.");
+    const wordData = StudyApp.data.dictionary[banglaWord];
+    if (!wordData) {
+        alert("Could not find data for this word.");
         return;
     }
-    const displayTerm = japaneseMeaningWithGrammar.replace(/\[.*?\]/g, '').trim().replace(/～/g, '...');
-    const japaneseMeaningCleaned = japaneseMeaningWithGrammar.replace(/\[.*?\]|～|、/g, '').trim();
+    
+    const japaneseSearchTerm = wordData.meaning.replace(/\[.*?\]|～|、/g, '').trim();
     const modal = StudyApp.elements.sentenceModal;
-    const wordEl = document.getElementById('sentence-modal-word');
-    const bodyEl = document.getElementById('sentence-modal-body');
-    wordEl.textContent = displayTerm;
+    const wordEl = modal.querySelector('#sentence-modal-word');
+    const bodyEl = modal.querySelector('#sentence-modal-body');
+
+    wordEl.textContent = japaneseSearchTerm;
     bodyEl.innerHTML = '<p>Searching for example sentences...</p>';
     modal.style.display = 'flex';
-    let relevantSentences = [];
-    let highlightRegex;
-    let searchStrategy;
-    function escapeRegExp(string) {
-        return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    }
-    const jpCharClass = '[\\p{N}\\p{sc=Han}\\p{sc=Hiragana}\\p{sc=Katakana}ー]+';
-    if (japaneseMeaningWithGrammar.startsWith('～') && !japaneseMeaningWithGrammar.endsWith('～') && !japaneseMeaningWithGrammar.includes('、')) {
-        searchStrategy = 'suffix';
-        const suffix = japaneseMeaningCleaned;
-        const safeSuffix = escapeRegExp(suffix);
-        const searchRegex = new RegExp(`${jpCharClass}${safeSuffix}`, 'u');
-        relevantSentences = StudyApp.data.exampleSentences.filter(sentence => {
-            const matches = [...sentence.jp.matchAll(new RegExp(searchRegex.source, 'gu'))];
-            if (matches.length === 0) return false;
-            return matches.some(match => {
-                const fullMatchedWord = match[0];
-                const isFullWordInDictionary = Object.values(StudyApp.data.dictionary).some(entry => entry.meaning.replace(/\[.*?\]|～|、/g, '').trim() === fullMatchedWord);
-                return !isFullWordInDictionary;
-            });
-        });
-        highlightRegex = new RegExp(`(${jpCharClass})(${safeSuffix})`, 'gu');
-    } else if (japaneseMeaningWithGrammar === '～と～') {
-        searchStrategy = 'and_particle';
-        const particle = japaneseMeaningCleaned;
-        const safeParticle = escapeRegExp(particle);
-        const searchRegex = new RegExp(`(^|\\s)${safeParticle}(\\s|$)`, 'u');
-        relevantSentences = StudyApp.data.exampleSentences.filter(sentence => searchRegex.test(sentence.jp));
-        highlightRegex = new RegExp(`(^|\\s)(${safeParticle})(\\s|$)`, 'gu');
-    } else if (japaneseMeaningWithGrammar.startsWith('～') && japaneseMeaningWithGrammar.includes('、')) {
-        searchStrategy = 'conjunction';
-        const particle = japaneseMeaningCleaned;
-        const safeParticle = escapeRegExp(particle);
-        const searchRegex = new RegExp(`${jpCharClass}${safeParticle}、`, 'u');
-        relevantSentences = StudyApp.data.exampleSentences.filter(sentence => searchRegex.test(sentence.jp));
-        highlightRegex = new RegExp(`(${jpCharClass})(${safeParticle}、)`, 'gu');
-    } else {
-        searchStrategy = 'general';
-        const safeSearchTerm = escapeRegExp(japaneseMeaningCleaned);
-        const searchRegex = new RegExp(`(^|[\\s、。])${safeSearchTerm}`, 'u');
-        relevantSentences = StudyApp.data.exampleSentences.filter(sentence => searchRegex.test(sentence.jp));
-        highlightRegex = new RegExp(`(^|[\\s、。])(${safeSearchTerm})`, 'gu');
-    }
+
+    const relevantSentences = StudyApp.data.exampleSentences.filter(sentence => {
+        const searchRegex = new RegExp(escapeRegExp(japaneseSearchTerm), 'u');
+        return searchRegex.test(sentence.jp);
+    });
+    
     if (relevantSentences.length === 0) {
-        bodyEl.innerHTML = `<p style="color: #ffcdd2;">No example sentences found for "${displayTerm}".</p>`;
+        bodyEl.innerHTML = `<p style="color: #ffcdd2;">No example sentences found for "${japaneseSearchTerm}".</p>`;
     } else {
-        let html = `<h2>Examples for "${displayTerm}"</h2>`;
+        const highlightRegex = new RegExp(escapeRegExp(japaneseSearchTerm), 'g');
+        let html = `<h2>Examples for "${japaneseSearchTerm}"</h2>`;
         relevantSentences.forEach((s, index) => {
-            let highlightedSentence;
-             if (searchStrategy === 'and_particle') {
-                 highlightedSentence = s.jp.replace(highlightRegex, `$1<strong>$2</strong>$3`);
-             } else {
-                 highlightedSentence = s.jp.replace(highlightRegex, `$1<strong>$2</strong>`);
-             }
-            html += `<div class="sentence-entry"><p class="sentence-japanese">${index + 1}. ${highlightedSentence} <span class="speak-icon" onclick="speakJapanese('${s.jp}')">🔊</span></p><p class="sentence-bangla">(${s.bn})</p></div>`;
+            const highlightedSentence = s.jp.replace(highlightRegex, `<strong>${japaneseSearchTerm}</strong>`);
+            html += `
+                <div class="sentence-entry">
+                    <p class="sentence-japanese">${index + 1}. ${highlightedSentence} <span class="speak-icon" onclick="speakJapanese('${s.jp.replace(/'/g, "\\'")}')">🔊</span></p>
+                    <p class="sentence-bangla">(${s.bn})</p>
+                </div>
+            `;
         });
         bodyEl.innerHTML = html;
     }
@@ -120,7 +87,7 @@ async function showMnemonic(banglaWord) {
     }
 
     const modal = StudyApp.elements.mnemonicModal;
-    const modalBody = document.getElementById('mnemonic-modal-body');
+    const modalBody = modal.querySelector('#mnemonic-modal-body');
     modal.style.display = 'flex';
     modalBody.innerHTML = '<p class="image-loading-text">Searching for a visual mnemonic...</p>';
 
@@ -135,15 +102,13 @@ async function showMnemonic(banglaWord) {
 
     try {
         const response = await fetch(`https://api.pexels.com/v1/search?query=${encodeURIComponent(englishWord)}&per_page=1`, {
-            headers: {
-                Authorization: apiKey
-            }
+            headers: { Authorization: apiKey }
         });
 
         if (!response.ok) throw new Error(`Pexels API error: ${response.statusText}`);
 
         const data = await response.json();
-        let imageHtml = `<p class="image-loading-text">No image found for "${englishWord}".</p>`; // Default message
+        let imageHtml = `<p class="image-loading-text">No image found for "${englishWord}".</p>`;
 
         if (data.photos && data.photos.length > 0) {
             const photo = data.photos[0];
@@ -176,11 +141,7 @@ function closeMnemonicModal() {
 }
 
 
-// NEW, CORRECTED DOMContentLoaded listener in study-session.js
-
-// In study-session.js
-
-// In study-session.js
+// --- MAIN APP LOGIC ---
 
 document.addEventListener('DOMContentLoaded', () => {
     let studyWordsList = [];
@@ -192,15 +153,14 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const studyPackage = JSON.parse(studyPackageStr);
             
-            // 2. Check if the data is recent (e.g., created within the last 10 seconds).
-            // This prevents using very old data from a previous session.
+            // 2. Check if the data is recent (created within the last 10 seconds).
             const isRecent = (Date.now() - studyPackage.timestamp) < 10000;
 
             if (studyPackage.words && isRecent) {
                 studyWordsList = studyPackage.words;
             }
 
-            // 3. Clean up the localStorage immediately after reading it.
+            // 3. Clean up localStorage immediately after reading it.
             localStorage.removeItem('studySessionData');
 
         } catch (e) {
@@ -212,9 +172,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // 4. Load the main dictionary from localStorage as before.
     const fullData = JSON.parse(localStorage.getItem('N5_APP_DATA'));
 
-    // 5. The rest of the logic proceeds as before, but the check is now more robust.
+    // 5. Critical Check: Ensure both lists exist before continuing.
     if (studyWordsList.length === 0 || !fullData || !fullData.dictionary) {
-        StudyApp.elements.container.innerHTML = '<h1>Error</h1><p>No study list found. Please return to the main page and select your words again.</p>';
+        StudyApp.elements.container.innerHTML = '<h1>Error</h1><p>No study list found or dictionary data is missing. Please go back to the main page and select your words again.</p>';
         return;
     }
 
@@ -222,12 +182,8 @@ document.addEventListener('DOMContentLoaded', () => {
     StudyApp.data.dictionary = fullData.dictionary;
     StudyApp.data.exampleSentences = fullData.exampleSentences || [];
     StudyApp.data.studyWords = studyWordsList;
-    StudyApp.data.practiceList = [];
     
     let currentStudyWord = null;
-    
-    // The rest of your file (renderStudyPage, getRandomStudyWord, etc.) remains THE SAME.
-    // I am including it here just to be 100% sure it's all in one block for you.
     
     function renderStudyPage() {
         let wordListHtml = StudyApp.data.studyWords.map(word => {
@@ -272,16 +228,6 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
         `;
         
-        StudyApp.elements.sentenceModal = document.getElementById('sentence-modal');
-        StudyApp.elements.mnemonicModal = document.getElementById('mnemonic-modal');
-
-        if (StudyApp.elements.sentenceModal) {
-             StudyApp.elements.sentenceModal.querySelector('.modal-close').addEventListener('click', closeSentenceModal);
-        }
-        if (StudyApp.elements.mnemonicModal) {
-             StudyApp.elements.mnemonicModal.querySelector('.modal-close').addEventListener('click', closeMnemonicModal);
-        }
-
         document.getElementById('get-study-word-btn').addEventListener('click', getRandomStudyWord);
         document.getElementById('show-study-meaning-btn').addEventListener('click', toggleStudyWordMeaning);
     }
@@ -312,7 +258,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const btn = document.getElementById('show-study-meaning-btn');
         const cardContent = document.getElementById('flashcard-content');
         
-        cardContent.classList.add('flipping'); 
         setTimeout(() => {
             if (btn.textContent === 'Show Meaning') {
                 const entry = StudyApp.data.dictionary[currentStudyWord];
@@ -324,12 +269,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 cardContent.innerHTML = `<div class="word-display">${currentStudyWord}</div>`;
                 btn.textContent = 'Show Meaning';
             }
-            cardContent.classList.remove('flipping');
         }, 150);
     }
     
+    // Initial render call
     renderStudyPage();
-});
 
-// IMPORTANT: All other functions like speakJapanese, showExampleSentences, etc., 
-// should remain untouched below this DOMContentLoaded block.
+    // Attach listeners for modals which are in the main HTML
+    if (StudyApp.elements.sentenceModal) {
+        StudyApp.elements.sentenceModal.querySelector('.modal-close').addEventListener('click', closeSentenceModal);
+    }
+    if (StudyApp.elements.mnemonicModal) {
+        StudyApp.elements.mnemonicModal.querySelector('.modal-close').addEventListener('click', closeMnemonicModal);
+    }
+});
