@@ -318,7 +318,7 @@ function startStudySession() {
         return;
     }
     
-    sessionStorage.setItem('studyList', JSON.stringify(App.config.studyList));
+    localStorage.setItem('studyList', JSON.stringify(App.config.studyList));
 
     // Check if the app is running in standalone (PWA) mode
     if (window.matchMedia('(display-mode: standalone)').matches) {

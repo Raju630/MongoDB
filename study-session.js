@@ -178,7 +178,7 @@ function closeMnemonicModal() {
 
 document.addEventListener('DOMContentLoaded', () => {
     // --- INITIALIZATION ---
-    const studyWordsList = JSON.parse(sessionStorage.getItem('studyList'));
+    const studyWordsList = JSON.parse(localStorage.getItem('studyList'));
     const fullData = JSON.parse(localStorage.getItem('N5_APP_DATA'));
     
     if (!studyWordsList || studyWordsList.length === 0 || !fullData) {
