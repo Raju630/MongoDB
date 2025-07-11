@@ -313,28 +313,22 @@ function clearSelection() {
 
 // NEW, CORRECTED startStudySession function in dictionary.js
 
+// In dictionary.js
+
 function startStudySession() {
     if (App.config.studyList.length === 0) {
         alert("Please select at least one word to start a practice session.");
         return;
     }
     
-    // 1. Join the array of words into a single comma-separated string.
-    const wordsString = App.config.studyList.join(',');
-    
-    // 2. Encode the string so special characters work in a URL.
-    const encodedWords = encodeURIComponent(wordsString);
-    
-    // 3. Create the final URL with the words as a parameter.
-    const studyUrl = `/study?words=${encodedWords}`;
+    // THE FIX: Use localStorage to save the list. It persists across tabs.
+    localStorage.setItem('studyList', JSON.stringify(App.config.studyList));
 
-    // 4. Navigate using the appropriate method.
+    // This logic correctly handles opening the page.
     if (window.matchMedia('(display-mode: standalone)').matches) {
-        // PWA Mode: Navigate within the same app window
-        window.location.href = studyUrl;
+        window.location.href = '/study';
     } else {
-        // Browser Mode: Open in a new tab
-        window.open(studyUrl, '_blank');
+        window.open('/study.html', '_blank'); // Use .html for browser reliability
     }
     
     toggleSelectionMode(); 

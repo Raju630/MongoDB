@@ -179,25 +179,15 @@ function closeMnemonicModal() {
 // NEW, CORRECTED DOMContentLoaded listener in study-session.js
 
 document.addEventListener('DOMContentLoaded', () => {
-    // --- INITIALIZATION ---
-    let studyWordsList = [];
+    // THE FIX: Get the list from localStorage.
+    const studyWordsList = JSON.parse(localStorage.getItem('studyList'));
     
-    // 1. Read the 'words' parameter from the current page's URL.
-    const urlParams = new URLSearchParams(window.location.search);
-    const wordsParam = urlParams.get('words');
-
-    if (wordsParam) {
-        // 2. Decode the parameter and split it back into an array.
-        const decodedWords = decodeURIComponent(wordsParam);
-        studyWordsList = decodedWords.split(',');
-    }
-
-    // 3. The N5_APP_DATA still needs to be loaded from localStorage.
-    // This contains the full dictionary to look up the words from the URL.
+    // Also get the main dictionary data, which is also in localStorage
     const fullData = JSON.parse(localStorage.getItem('N5_APP_DATA'));
     
-    if (studyWordsList.length === 0 || !fullData) {
-        StudyApp.elements.container.innerHTML = '<h1>Error</h1><p>No study list found or dictionary data is missing. Please go back and select words to study.</p>';
+    // Check if either the list OR the main dictionary is missing.
+    if (!studyWordsList || studyWordsList.length === 0 || !fullData || !fullData.dictionary) {
+        StudyApp.elements.container.innerHTML = '<h1>Error</h1><p>No study list found or dictionary data is missing. Please go back to the homepage and select words to study again.</p>';
         return;
     }
 
