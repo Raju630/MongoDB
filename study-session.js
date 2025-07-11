@@ -43,10 +43,10 @@ function showExampleSentences(banglaWord) {
     const bodyEl = modal.querySelector('#sentence-modal-body');
 
     wordEl.textContent = japaneseSearchTerm;
-    bodyEl.innerHTML = '<p>Loading sentences...</p>';
+    bodyEl.innerHTML = '<p>Searching for example sentences...</p>';
     modal.style.display = 'flex';
 
-    // Search the exampleSentences array that is now correctly populated
+    // The exampleSentences array is now correctly populated
     const relevantSentences = StudyApp.data.exampleSentences.filter(sentence => {
         const searchRegex = new RegExp(escapeRegExp(japaneseSearchTerm), 'u');
         return searchRegex.test(sentence.jp);
@@ -107,31 +107,38 @@ function closeMnemonicModal() {
 document.addEventListener('DOMContentLoaded', () => {
     
     // --- DATA INITIALIZATION ---
-    const studyPackageStr = localStorage.getItem('studySessionData');
+    let studyWordsList = [];
+    
+    // 1. Read the list of words to study from the URL parameter.
+    const urlParams = new URLSearchParams(window.location.search);
+    const wordsParam = urlParams.get('words');
 
-    if (!studyPackageStr) {
-        StudyApp.elements.container.innerHTML = '<h1>Error</h1><p>No study session data found. Please go back to the main page and start a new session.</p>';
+    if (wordsParam) {
+        try {
+            studyWordsList = decodeURIComponent(wordsParam).split(',');
+        } catch (e) {
+            console.error("Could not decode words from URL:", e);
+        }
+    }
+
+    // 2. Read the COMPLETE dictionary and sentence data from the main app's localStorage.
+    // This is the CRITICAL step that was failing before.
+    const mainDataStr = localStorage.getItem('N5_APP_DATA');
+
+    if (studyWordsList.length === 0 || !mainDataStr) {
+        StudyApp.elements.container.innerHTML = '<h1>Error</h1><p>No study list or main dictionary data found. Please go back to the main page and start a new session.</p>';
         return;
     }
 
     try {
-        const studyPackage = JSON.parse(studyPackageStr);
+        const mainData = JSON.parse(mainDataStr);
         
-        // Populate all necessary data from the package
-        StudyApp.data.studyWords = studyPackage.words || [];
-        StudyApp.data.dictionary = studyPackage.dictionary || {};
-        StudyApp.data.exampleSentences = studyPackage.exampleSentences || []; // CRITICAL: This was missing
-
-        if (StudyApp.data.studyWords.length === 0 || Object.keys(StudyApp.data.dictionary).length === 0) {
-            throw new Error("Study package is missing essential data.");
-        }
-
-        // Clean up immediately after successful use
-        localStorage.removeItem('studySessionData');
+        StudyApp.data.dictionary = mainData.dictionary || {};
+        StudyApp.data.exampleSentences = mainData.exampleSentences || [];
+        StudyApp.data.studyWords = studyWordsList;
 
     } catch (e) {
-        StudyApp.elements.container.innerHTML = `<h1>Error</h1><p>Could not load study data: ${e.message}. Please start a new session.</p>`;
-        localStorage.removeItem('studySessionData');
+        StudyApp.elements.container.innerHTML = `<h1>Error</h1><p>Could not load main dictionary data. It might be corrupted. ${e.message}</p>`;
         return;
     }
 
@@ -141,7 +148,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderStudyPage() {
         let wordListHtml = StudyApp.data.studyWords.map(word => {
             const entry = StudyApp.data.dictionary[word];
-            if (!entry) return '';
+            if (!entry) return ''; // Gracefully handle if a word isn't in the dictionary
             const hasEnglishTerm = !!entry.en;
             
             return `<div class="study-list-item"><div><span class="word-bangla">${word}</span><span class="word-japanese">${entry.meaning}</span></div><div class="study-item-actions">${hasEnglishTerm ? `<button class="card-action-btn mnemonic" title="Show Mnemonic" onclick="showMnemonic('${word.replace(/'/g, "\\'")}')">🖼️</button>` : ''}<button class="card-action-btn examples" title="Show Examples" onclick="showExampleSentences('${word.replace(/'/g, "\\'")}')">📝</button></div></div>`;

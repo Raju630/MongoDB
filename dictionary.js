@@ -311,7 +311,7 @@ function clearSelection() {
     document.getElementById('selected-count').textContent = 0;
 }
 
-// In dictionary.js -- FINAL, CORRECTED VERSION
+// In dictionary.js -- FINAL, SIMPLE, AND CORRECT
 
 function startStudySession() {
     if (App.config.studyList.length === 0) {
@@ -319,19 +319,13 @@ function startStudySession() {
         return;
     }
 
-    // 1. Create a data "package" with everything the study page needs.
-    const studyPackage = {
-        words: App.config.studyList,
-        dictionary: App.data.dictionary, // Send the whole dictionary
-        exampleSentences: App.data.exampleSentences, // Send all sentences
-        timestamp: Date.now()
-    };
-
-    // 2. Save this complete package to localStorage.
-    localStorage.setItem('studySessionData', JSON.stringify(studyPackage));
+    // 1. Join the words into a single comma-separated string & encode for the URL.
+    const encodedWords = encodeURIComponent(App.config.studyList.join(','));
     
-    // 3. Navigate. Using the direct file path is safest.
-    const studyUrl = 'study.html';
+    // 2. Create the final URL. We use the direct file path to be safe.
+    const studyUrl = `study.html?words=${encodedWords}`;
+
+    // 3. Navigate.
     if (window.matchMedia('(display-mode: standalone)').matches) {
         window.location.href = studyUrl;
     } else {
@@ -340,6 +334,14 @@ function startStudySession() {
     
     toggleSelectionMode(); 
 }
+
+// ALSO, add this small piece of code inside the main DOMContentLoaded listener
+// in dictionary.js. This will clear the selection when the user returns to this page.
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && App.config.isSelectionMode) {
+        toggleSelectionMode();
+    }
+});
 
 // Add this to your main DOMContentLoaded listener in dictionary.js to handle clearing the selection
 // when the user returns to the tab.
