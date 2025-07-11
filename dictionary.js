@@ -38,8 +38,16 @@ const App = {
     },
 };
 
-// --- 2. INITIALIZATION & DATA HANDLING ---
-
+// NEW: Debounce helper function
+function debounce(func, delay = 250) {
+    let timeoutId;
+    return function(...args) {
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(() => {
+            func.apply(this, args);
+        }, delay);
+    };
+}
 // NEW, API-DRIVEN listener
 document.addEventListener('DOMContentLoaded', () => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -52,12 +60,18 @@ document.addEventListener('DOMContentLoaded', () => {
     fetchAndRenderWords();
 });
 
-// NEW function to fetch data from the API
-// NEW fetchAndRenderWords function with pagination logic
+// FINAL, CORRECTED fetchAndRenderWords function
 async function fetchAndRenderWords(searchTerm = '') {
-    let apiUrl = '/api/words';
+    const container = document.getElementById('word-list-container');
+    if (!container) return;
     
-    if (searchTerm) {
+    // Show a loading indicator immediately
+    container.innerHTML = '<p style="text-align:center; color:#aaa;">Loading...</p>';
+    
+    let apiUrl = '/api/words';
+    const isSearching = searchTerm.length > 0;
+
+    if (isSearching) {
         apiUrl += `?search=${encodeURIComponent(searchTerm)}`;
     } else if (App.config.lessonId) {
         apiUrl += `?lesson=${App.config.lessonId}`;
@@ -68,25 +82,40 @@ async function fetchAndRenderWords(searchTerm = '') {
         if (!response.ok) throw new Error(`API request failed`);
         
         const data = await response.json();
-
-        // The API returns an object, so we get the keys (the Bangla words)
-        App.config.allWordsForView = Object.keys(data).sort();
-        // Merge the new data into our global dictionary for later use
+        const wordKeys = Object.keys(data).sort();
+        
+        // Always merge the fetched data into the main dictionary
         Object.assign(App.data.dictionary, data);
 
-        // Reset pagination and render the very first batch
-        App.config.currentPage = 0;
-        App.config.renderedWords = [];
-        document.getElementById('word-list-container').innerHTML = ''; // Clear previous list
-        
-        renderNextBatch(); // Render the first page of results
+        container.innerHTML = ''; // Clear "Loading..." message
+
+        if (wordKeys.length === 0) {
+            container.innerHTML = '<p style="text-align:center; color:#888;">No words found.</p>';
+            return;
+        }
+
+        if (isSearching) {
+            // --- SEARCH LOGIC ---
+            // If we are searching, bypass virtualization and render all results at once.
+            console.log(`Search returned ${wordKeys.length} results. Rendering all.`);
+            wordKeys.forEach(word => container.appendChild(createWordCard(word)));
+            // Disable infinite scroll during search
+            window.removeEventListener('scroll', handleInfiniteScroll);
+
+        } else {
+            // --- BATCH LOADING LOGIC ---
+            // If not searching, set up the state for virtualized rendering.
+            console.log(`Loaded ${wordKeys.length} words for view. Setting up batch rendering.`);
+            App.config.allWordsForView = wordKeys;
+            App.config.currentPage = 0;
+            renderNextBatch(); // Render the first batch
+            // Re-enable infinite scroll for browsing
+            window.addEventListener('scroll', handleInfiniteScroll);
+        }
 
     } catch (error) {
         console.error("Failed to fetch words:", error);
-        const container = document.getElementById('word-list-container');
-        if (container) {
-            container.innerHTML = '<p style="text-align:center; color:#ff8a80;">Error: Could not load dictionary data.</p>';
-        }
+        container.innerHTML = '<p style="text-align:center; color:#ff8a80;">Error: Could not load dictionary data.</p>';
     }
 }
 
@@ -204,7 +233,9 @@ function renderDictionaryTab() {
     document.getElementById('toggle-select-mode-btn').addEventListener('click', toggleSelectionMode);
     document.getElementById('start-study-btn').addEventListener('click', startStudySession);
     document.getElementById('clear-selection-btn').addEventListener('click', clearSelection);
-    document.getElementById('search-input').addEventListener('input', (e) => fetchAndRenderWords(e.target.value));
+    document.getElementById('search-input').addEventListener('input', debounce((e) => {
+    fetchAndRenderWords(e.target.value.trim());
+}));
     document.getElementById('word-list-container').addEventListener('click', handleWordCardClick);
     window.addEventListener('scroll', handleInfiniteScroll);
 }
