@@ -512,46 +512,79 @@ function createWordCard(word) {
     return card;
 }
 
-// UPDATED showExampleSentences function
 async function showExampleSentences(banglaWord) {
     const wordData = App.data.dictionary[banglaWord];
-    if (!wordData) return;
+    if (!wordData || !wordData.en) {
+        alert("This word does not have an English key for sentence searching yet.");
+        return;
+    }
 
     const japaneseSearchTerm = wordData.meaning.replace(/\[.*?\]|～|、/g, '').trim();
+    
     const modal = App.elements.sentenceModal;
     const wordEl = modal.querySelector('#sentence-modal-word');
     const bodyEl = modal.querySelector('#sentence-modal-body');
 
     wordEl.textContent = japaneseSearchTerm;
-    bodyEl.innerHTML = '<p>Loading sentences...</p>';
+    bodyEl.innerHTML = '<p>Searching for example sentences...</p>';
     modal.style.display = 'flex';
 
-    try {
-        // Call the new sentences API
-        const response = await fetch(`/api/sentences?term=${encodeURIComponent(japaneseSearchTerm)}`);
-        if (!response.ok) throw new Error("Failed to fetch sentences.");
-        
-        const relevantSentences = await response.json();
+    function escapeRegExp(string) {
+        return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
 
-        if (relevantSentences.length === 0) {
-            bodyEl.innerHTML = `<p style="color: #ffcdd2;">No example sentences found for "${japaneseSearchTerm}".</p>`;
-        } else {
-            const highlightRegex = new RegExp(escapeRegExp(japaneseSearchTerm), 'g');
-            let html = `<h2>Examples for "${japaneseSearchTerm}"</h2>`;
-            relevantSentences.forEach((s, index) => {
-                const highlightedSentence = s.jp.replace(highlightRegex, `<strong>${japaneseSearchTerm}</strong>`);
-                html += `
-                    <div class="sentence-entry">
-                        <p class="sentence-japanese">${index + 1}. ${highlightedSentence} <span class="speak-icon" onclick="speakJapanese('${s.jp.replace(/'/g, "\\'")}')">🔊</span></p>
-                        <p class="sentence-bangla">(${s.bn})</p>
-                    </div>
-                `;
-            });
-            bodyEl.innerHTML = html;
+    // --- DEFINITIVE HYBRID SEARCH LOGIC ---
+
+    // 1. Prepare Japanese search term
+    const jpSearchRegex = new RegExp(escapeRegExp(japaneseSearchTerm), 'u');
+
+    // 2. Prepare English search terms
+    // This now creates an array of keywords, e.g., ["Japanese", "language"]
+    const englishKeywords = wordData.en
+        .replace(/\[.*?\]|\(.*?\)|~|,/g, '')
+        .trim()
+        .split(' ')
+        .filter(k => k.length > 0); // Remove any empty strings
+
+    const relevantSentences = App.data.exampleSentences.filter(sentence => {
+        // A sentence is a match only if BOTH conditions are met:
+        
+        // Condition A: The Japanese search term is in the Japanese sentence.
+        const isJapaneseMatch = jpSearchRegex.test(sentence.jp);
+        if (!isJapaneseMatch) {
+            return false;
         }
-    } catch (error) {
-        console.error("Error fetching sentences:", error);
-        bodyEl.innerHTML = `<p style="color: #ffcdd2;">Could not load sentences.</p>`;
+
+        // Condition B: AT LEAST ONE of the English keywords is in the English sentence.
+        let isEnglishMatch = false;
+        if (englishKeywords.length > 0 && sentence.en) {
+            isEnglishMatch = englishKeywords.some(keyword => {
+                const enSearchRegex = new RegExp(`\\b${escapeRegExp(keyword)}\\b`, 'i');
+                return enSearchRegex.test(sentence.en);
+            });
+        }
+        
+        return isEnglishMatch;
+    });
+    
+    // --- END OF SEARCH LOGIC ---
+
+    if (relevantSentences.length === 0) {
+        bodyEl.innerHTML = `<p style="color: #ffcdd2;">No example sentences found for "${japaneseSearchTerm}".</p>`;
+    } else {
+        let html = `<h2>Examples for "${japaneseSearchTerm}"</h2>`;
+        relevantSentences.forEach((s, index) => {
+            const highlightRegex = new RegExp(escapeRegExp(japaneseSearchTerm), 'g');
+            const highlightedSentence = s.jp.replace(highlightRegex, `<strong>${japaneseSearchTerm}</strong>`);
+
+            html += `
+                <div class="sentence-entry">
+                    <p class="sentence-japanese">${index + 1}. ${highlightedSentence} <span class="speak-icon" onclick="speakJapanese('${s.jp.replace(/'/g, "\\'")}')">🔊</span></p>
+                    <p class="sentence-bangla">(${s.bn})</p>
+                </div>
+            `;
+        });
+        bodyEl.innerHTML = html;
     }
 }
 function escapeRegExp(string) {
