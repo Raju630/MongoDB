@@ -317,6 +317,8 @@ function clearSelection() {
 
 // In dictionary.js
 
+// In dictionary.js
+
 function startStudySession() {
     if (App.config.studyList.length === 0) {
         alert("Please select at least one word to start a practice session.");
@@ -332,8 +334,7 @@ function startStudySession() {
     // 2. Save this package to localStorage.
     localStorage.setItem('studySessionData', JSON.stringify(studyPackage));
     
-    // 3. Navigate. We will NOT clear the selection here to avoid race conditions.
-    // The selection will be cleared when the user returns to this page.
+    // 3. Navigate.
     if (window.matchMedia('(display-mode: standalone)').matches) {
         window.location.href = '/study';
     } else {
@@ -341,6 +342,14 @@ function startStudySession() {
     }
 }
 
+// And ensure this is also in your dictionary.js DOMContentLoaded listener
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+        if (App.config.isSelectionMode) {
+            toggleSelectionMode(); // This will call clearSelection()
+        }
+    }
+});
 // ALSO, add this small piece of code inside the main DOMContentLoaded listener
 // in dictionary.js. This will clear the selection when the user comes back to the page.
 document.addEventListener('visibilitychange', () => {
