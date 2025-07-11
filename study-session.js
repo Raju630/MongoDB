@@ -180,41 +180,56 @@ function closeMnemonicModal() {
 
 // In study-session.js
 
+// In study-session.js
+
 document.addEventListener('DOMContentLoaded', () => {
-    // --- INITIALIZATION ---
     let studyWordsList = [];
     
-    // 1. Read the 'words' parameter from the current page's URL.
-    const urlParams = new URLSearchParams(window.location.search);
-    const wordsParam = urlParams.get('words');
+    // 1. Try to get the data package from localStorage.
+    const studyPackageStr = localStorage.getItem('studySessionData');
+    
+    if (studyPackageStr) {
+        try {
+            const studyPackage = JSON.parse(studyPackageStr);
+            
+            // 2. Check if the data is recent (e.g., created within the last 10 seconds).
+            // This prevents using very old data from a previous session.
+            const isRecent = (Date.now() - studyPackage.timestamp) < 10000;
 
-    if (wordsParam) {
-        // 2. Decode the parameter and split it back into an array.
-        const decodedWords = decodeURIComponent(wordsParam);
-        studyWordsList = decodedWords.split(',');
+            if (studyPackage.words && isRecent) {
+                studyWordsList = studyPackage.words;
+            }
+
+            // 3. Clean up the localStorage immediately after reading it.
+            localStorage.removeItem('studySessionData');
+
+        } catch (e) {
+            console.error("Failed to parse study session data:", e);
+            studyWordsList = [];
+        }
     }
 
-    // 3. The N5_APP_DATA still needs to be loaded from localStorage.
-    // This contains the full dictionary to look up the words from the URL.
+    // 4. Load the main dictionary from localStorage as before.
     const fullData = JSON.parse(localStorage.getItem('N5_APP_DATA'));
-    
-    // 4. Critical Check: Ensure both lists exist before continuing.
+
+    // 5. The rest of the logic proceeds as before, but the check is now more robust.
     if (studyWordsList.length === 0 || !fullData || !fullData.dictionary) {
-        StudyApp.elements.container.innerHTML = '<h1>Error</h1><p>No study list found or dictionary data is missing. Please go back to the main page and select words to study again.</p>';
+        StudyApp.elements.container.innerHTML = '<h1>Error</h1><p>No study list found. Please return to the main page and select your words again.</p>';
         return;
     }
 
-    // --- Populate Global State (This part is crucial) ---
+    // --- Populate Global State ---
     StudyApp.data.dictionary = fullData.dictionary;
-    StudyApp.data.exampleSentences = fullData.exampleSentences || []; // Ensure sentences array exists
+    StudyApp.data.exampleSentences = fullData.exampleSentences || [];
     StudyApp.data.studyWords = studyWordsList;
-    StudyApp.data.practiceList = []; // Initialize empty practice list
-
+    StudyApp.data.practiceList = [];
+    
     let currentStudyWord = null;
     
-    // --- The main function to build the page structure ---
+    // The rest of your file (renderStudyPage, getRandomStudyWord, etc.) remains THE SAME.
+    // I am including it here just to be 100% sure it's all in one block for you.
+    
     function renderStudyPage() {
-        // This function now correctly uses the data populated above
         let wordListHtml = StudyApp.data.studyWords.map(word => {
             const entry = StudyApp.data.dictionary[word];
             if (!entry) return '';
@@ -257,7 +272,6 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
         `;
         
-        // Find and prepare the modals that are already in study.html
         StudyApp.elements.sentenceModal = document.getElementById('sentence-modal');
         StudyApp.elements.mnemonicModal = document.getElementById('mnemonic-modal');
 
@@ -298,7 +312,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const btn = document.getElementById('show-study-meaning-btn');
         const cardContent = document.getElementById('flashcard-content');
         
-        // This class is for a potential flip animation, which we can remove if not used.
         cardContent.classList.add('flipping'); 
         setTimeout(() => {
             if (btn.textContent === 'Show Meaning') {
@@ -312,10 +325,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 btn.textContent = 'Show Meaning';
             }
             cardContent.classList.remove('flipping');
-        }, 150); // Reduced timeout for faster flip
+        }, 150);
     }
     
-    // Initial render call
     renderStudyPage();
 });
 

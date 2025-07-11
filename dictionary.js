@@ -315,33 +315,41 @@ function clearSelection() {
 
 // In dictionary.js
 
+// In dictionary.js
+
 function startStudySession() {
     if (App.config.studyList.length === 0) {
         alert("Please select at least one word to start a practice session.");
         return;
     }
-    
-    // 1. Join the array of words into a single comma-separated string.
-    const wordsString = App.config.studyList.join(',');
-    
-    // 2. Encode the string so special characters work in a URL.
-    const encodedWords = encodeURIComponent(wordsString);
-    
-    // 3. Create the final URL with the words as a parameter.
-    const studyUrl = `/study?words=${encodedWords}`;
 
-    // 4. Navigate using the appropriate method.
-    if (window.matchMedia('(display-mode: standalone)').matches) {
-        // PWA Mode: Navigate to the clean path
-        window.location.href = studyUrl;
-    } else {
-        // Browser Mode: Open the clean path in a new tab
-        window.open(studyUrl, '_blank');
-    }
+    // 1. Create a data "package" with the words and a timestamp.
+    const studyPackage = {
+        words: App.config.studyList,
+        timestamp: Date.now() // The current time in milliseconds
+    };
+
+    // 2. Save this package to localStorage.
+    localStorage.setItem('studySessionData', JSON.stringify(studyPackage));
     
-    toggleSelectionMode(); 
+    // 3. Navigate. We will NOT clear the selection here to avoid race conditions.
+    // The selection will be cleared when the user returns to this page.
+    if (window.matchMedia('(display-mode: standalone)').matches) {
+        window.location.href = '/study';
+    } else {
+        window.open('/study', '_blank');
+    }
 }
 
+// ALSO, add this small piece of code inside the main DOMContentLoaded listener
+// in dictionary.js. This will clear the selection when the user comes back to the page.
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+        if (App.config.isSelectionMode) {
+            toggleSelectionMode(); // This will call clearSelection()
+        }
+    }
+});
 function toggleWeakWordMeaning() {
     const word = App.config.currentRandomWord;
     if (!word) return;
