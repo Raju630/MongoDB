@@ -24,7 +24,11 @@ const App = {
         },
         quizScore: 0,
         studyList: [],
-        isSelectionMode: false
+        isSelectionMode: false,
+        renderedWords: [], // <-- ADD THIS: To hold the words currently displayed
+        allWordsForView: [], // <-- ADD THIS: To hold all words for the current lesson/search
+        renderBatchSize: 30, // <-- ADD THIS: How many words to render at a time
+        currentPage: 0 
     },
     elements: {
         appContainer: document.getElementById('dictionary-app-container'),
@@ -49,10 +53,10 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // NEW function to fetch data from the API
+// NEW fetchAndRenderWords function with pagination logic
 async function fetchAndRenderWords(searchTerm = '') {
     let apiUrl = '/api/words';
     
-    // Check if we need data for a specific lesson, a search, or all words
     if (searchTerm) {
         apiUrl += `?search=${encodeURIComponent(searchTerm)}`;
     } else if (App.config.lessonId) {
@@ -61,23 +65,70 @@ async function fetchAndRenderWords(searchTerm = '') {
 
     try {
         const response = await fetch(apiUrl);
-        if (!response.ok) {
-            throw new Error(`API request failed with status ${response.status}`);
-        }
+        if (!response.ok) throw new Error(`API request failed`);
+        
         const data = await response.json();
 
-        // Update the global dictionary with the fetched data
-        // We use Object.assign to merge new data without deleting old data from other lessons
+        // The API returns an object, so we get the keys (the Bangla words)
+        App.config.allWordsForView = Object.keys(data).sort();
+        // Merge the new data into our global dictionary for later use
         Object.assign(App.data.dictionary, data);
 
-        // Render the word list with the new data
-        renderWordList(searchTerm); // Pass the searchTerm to filter the display
+        // Reset pagination and render the very first batch
+        App.config.currentPage = 0;
+        App.config.renderedWords = [];
+        document.getElementById('word-list-container').innerHTML = ''; // Clear previous list
+        
+        renderNextBatch(); // Render the first page of results
 
     } catch (error) {
         console.error("Failed to fetch words:", error);
         const container = document.getElementById('word-list-container');
         if (container) {
             container.innerHTML = '<p style="text-align:center; color:#ff8a80;">Error: Could not load dictionary data.</p>';
+        }
+    }
+}
+
+// NEW function to render only a batch of words
+function renderNextBatch() {
+    const container = document.getElementById('word-list-container');
+    if (!container) return;
+
+    const { allWordsForView, currentPage, renderBatchSize } = App.config;
+    
+    const startIndex = currentPage * renderBatchSize;
+    const endIndex = startIndex + renderBatchSize;
+
+    // Get the next slice of words to render
+    const batchToRender = allWordsForView.slice(startIndex, endIndex);
+
+    if (batchToRender.length === 0 && currentPage === 0) {
+        container.innerHTML = '<p style="text-align:center; color:#888;">No words found.</p>';
+        return;
+    }
+
+    // Append the new cards to the container
+    batchToRender.forEach(word => {
+        if (App.data.dictionary[word]) {
+            container.appendChild(createWordCard(word));
+        }
+    });
+
+    // Increment the page for the next batch
+    App.config.currentPage++;
+}
+
+// NEW function to handle infinite scroll
+function handleInfiniteScroll() {
+    // window.scrollY: how far we've scrolled from the top
+    // window.innerHeight: the height of the visible viewport
+    // document.documentElement.scrollHeight: the total height of the entire page
+    if ((window.innerHeight + window.scrollY) >= document.documentElement.scrollHeight - 200) {
+        // We are within 200px of the bottom of the page, load more.
+        const { renderedWords, allWordsForView } = App.config;
+        if (allWordsForView.length > document.querySelectorAll('.word-card').length) {
+             renderNextBatch();
         }
     }
 }
@@ -155,6 +206,7 @@ function renderDictionaryTab() {
     document.getElementById('clear-selection-btn').addEventListener('click', clearSelection);
     document.getElementById('search-input').addEventListener('input', (e) => fetchAndRenderWords(e.target.value));
     document.getElementById('word-list-container').addEventListener('click', handleWordCardClick);
+    window.addEventListener('scroll', handleInfiniteScroll);
 }
 
 function renderWeakWordsTab() {
@@ -327,6 +379,9 @@ function attachAppEventListeners() {
                 document.getElementById('quiz-score').textContent = '0';
                 renderQuizTab();
             }
+            if (tabName !== 'dictionary') {
+                window.removeEventListener('scroll', handleInfiniteScroll);
+            }
             App.elements.appContainer.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
             App.elements.appContainer.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
             App.elements.appContainer.querySelector(`#${tabName}-tab`).classList.add('active');
@@ -356,21 +411,18 @@ function getWordPool() {
 }
 
 // UPDATED renderWordList function
+// FINAL, SIMPLIFIED renderWordList
 function renderWordList() {
-    const container = document.getElementById('word-list-container');
+    // This function is now just a "controller" that sets things up.
+    // The actual rendering is done by renderNextBatch.
+    
     const title = document.getElementById('word-list-title');
-    if (!container || !title) return;
-
-    // The data is now pre-filtered by the API, so we just get the keys
-    let wordPool = getWordPool();
+    if (!title) return;
+    
     title.textContent = App.config.lessonId ? `Words for Lesson ${App.config.lessonId}` : "All Words";
-
-    container.innerHTML = '';
-    if (wordPool.length === 0) {
-        container.innerHTML = '<p style="text-align:center; color:#888;">No words found.</p>';
-        return;
-    }
-    wordPool.sort().forEach(word => container.appendChild(createWordCard(word)));
+    
+    // The initial call to render the first batch is now handled by fetchAndRenderWords.
+    // This function can be kept for potential future use or further simplified.
 }
 
 function createWordCard(word) {
