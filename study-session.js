@@ -1,5 +1,6 @@
-// study-session.js (Corrected and Self-Sufficient)
+// study-session.js (FINAL - CORRECTED SENTENCE FETCHING)
 
+// --- GLOBAL STATE for this page ---
 const StudyApp = {
     data: {
         dictionary: {},
@@ -16,6 +17,7 @@ const StudyApp = {
     }
 };
 
+// --- GLOBAL HELPER FUNCTIONS ---
 function speakJapanese(text) {
     if ('speechSynthesis' in window) {
         window.speechSynthesis.cancel();
@@ -30,6 +32,7 @@ function escapeRegExp(string) {
     return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+// THIS FUNCTION IS NOW CORRECTED TO FETCH FROM THE API
 async function showExampleSentences(banglaWord) {
     const wordData = StudyApp.data.dictionary[banglaWord];
     if (!wordData) return;
@@ -44,6 +47,7 @@ async function showExampleSentences(banglaWord) {
     modal.style.display = 'flex';
 
     try {
+        // Correctly fetch sentences from the API endpoint
         const response = await fetch(`/api/sentences?term=${encodeURIComponent(japaneseSearchTerm)}`);
         if (!response.ok) throw new Error("Failed to fetch sentences from the API.");
         
@@ -103,29 +107,30 @@ function closeMnemonicModal() {
     if (StudyApp.elements.mnemonicModal) StudyApp.elements.mnemonicModal.style.display = 'none';
 }
 
+
+// --- MAIN APP LOGIC (NO CHANGES NEEDED HERE) ---
 document.addEventListener('DOMContentLoaded', async () => {
+    
+    let studyWordsList = [];
     const urlParams = new URLSearchParams(window.location.search);
     const wordsParam = urlParams.get('words');
 
     if (!wordsParam) {
-        StudyApp.elements.container.innerHTML = '<h1>Error</h1><p>No study list provided. Please return to the main page and start a new session.</p>';
+        StudyApp.elements.container.innerHTML = '<h1>Error</h1><p>No study list or main dictionary data found. Please go back to the main page and start a new session.</p>';
         return;
     }
-
+    
     try {
-        const studyWordsList = decodeURIComponent(wordsParam).split(',');
+        studyWordsList = decodeURIComponent(wordsParam).split(',');
         StudyApp.data.studyWords = studyWordsList;
-
-        // Fetch the specific words needed for the session from the API using the search endpoint.
+        
+        // This part is correct: it fetches only the necessary words for the session.
         const response = await fetch(`/api/words?search=${encodeURIComponent(studyWordsList.join(','))}`);
         if (!response.ok) throw new Error('Failed to fetch dictionary data from the server.');
-
         StudyApp.data.dictionary = await response.json();
-        
-        renderStudyPage();
 
     } catch (e) {
-        StudyApp.elements.container.innerHTML = `<h1>Error</h1><p>Could not load the study session data. ${e.message}</p>`;
+        StudyApp.elements.container.innerHTML = `<h1>Error</h1><p>Could not load main dictionary data. It might be corrupted. ${e.message}</p>`;
         return;
     }
 
@@ -133,15 +138,16 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function renderStudyPage() {
         const validStudyWords = StudyApp.data.studyWords.filter(word => StudyApp.data.dictionary[word]);
-        
-        if (validStudyWords.length === 0) {
-             StudyApp.elements.container.innerHTML = `<h1>Error</h1><p>None of the selected words could be found in the dictionary.</p>`;
+        if(validStudyWords.length === 0){
+             StudyApp.elements.container.innerHTML = '<h1>Error</h1><p>The selected words could not be found. Please return and try again.</p>';
              return;
         }
 
-        const wordListHtml = validStudyWords.map(word => {
+        let wordListHtml = validStudyWords.map(word => {
             const entry = StudyApp.data.dictionary[word];
+            if (!entry) return '';
             const hasEnglishTerm = !!entry.en;
+            
             return `<div class="study-list-item"><div><span class="word-bangla">${word}</span><span class="word-japanese">${entry.meaning}</span></div><div class="study-item-actions">${hasEnglishTerm ? `<button class="card-action-btn mnemonic" title="Show Mnemonic" onclick="showMnemonic('${word.replace(/'/g, "\\'")}')">🖼️</button>` : ''}<button class="card-action-btn examples" title="Show Examples" onclick="showExampleSentences('${word.replace(/'/g, "\\'")}')">📝</button></div></div>`;
         }).join('');
 
@@ -161,7 +167,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     function getRandomStudyWord() {
         const getBtn = document.getElementById('get-study-word-btn');
         if (StudyApp.data.practiceList.length === 0) {
-            const validWords = StudyApp.data.studyWords.filter(word => StudyApp.data.dictionary[word]);
+             const validWords = StudyApp.data.studyWords.filter(word => StudyApp.data.dictionary[word]);
             StudyApp.data.practiceList = [...validWords].sort(() => Math.random() - 0.5);
             getBtn.textContent = 'Next Word';
         }
@@ -174,10 +180,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             return;
         }
 
-        document.getElementById('flashcard-content').innerHTML = `<div class="word-display">${currentStudyWord}</div>`;
-        const showMeaningBtn = document.getElementById('show-study-meaning-btn');
-        showMeaningBtn.textContent = 'Show Meaning';
-        showMeaningBtn.style.display = 'inline-block';
+        const content = document.getElementById('flashcard-content');
+        content.innerHTML = `<div class="word-display">${currentStudyWord}</div>`;
+        
+        const btn = document.getElementById('show-study-meaning-btn');
+        btn.textContent = 'Show Meaning';
+        btn.style.display = 'inline-block';
 
         if (StudyApp.data.practiceList.length === 0) getBtn.textContent = 'Start Over';
     }
@@ -198,6 +206,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             btn.textContent = 'Show Meaning';
         }
     }
+    
+    renderStudyPage();
 
     if (StudyApp.elements.sentenceModal) {
         StudyApp.elements.sentenceModal.querySelector('.modal-close').addEventListener('click', closeSentenceModal);
