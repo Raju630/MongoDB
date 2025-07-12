@@ -1,8 +1,7 @@
-// api/words.js (FINAL - CORRECTLY DECODES URL PARAMETERS)
+// api/words.js (FINAL - CORRECTLY SEPARATES LOGIC FOR LIST VS. SEARCH)
 
 import { MongoClient } from 'mongodb';
 
-// This function escapes special characters for use in a regular expression
 function escapeRegExp(string) {
   return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
@@ -16,49 +15,44 @@ export default async function handler(request, response) {
     const db = client.db("n5_dictionary_db");
     const collection = db.collection("words");
 
-    const { lesson, search } = request.query;
+    // Get all potential parameters
+    const { lesson, search, list } = request.query;
     
     let query = {};
     let results = [];
 
-    if (search) {
-      // --- THE CRITICAL FIX IS HERE ---
-      // We must first decode the search parameter received from the URL.
+    // --- THE CRITICAL LOGIC SEPARATION ---
+    if (list) {
+      // 1. Handle requests for a specific list of words (from Study Session)
+      const decodedList = decodeURIComponent(list);
+      const wordList = decodedList.split(',').map(word => word.trim());
+      query = { bangla: { $in: wordList } };
+      results = await collection.find(query).toArray();
+
+    } else if (search) {
+      // 2. Handle general search requests (from search bar)
       const decodedSearch = decodeURIComponent(search);
-
-      // Now, check the DECODED string for commas.
-      if (decodedSearch.includes(',')) {
-        // This is a list of words from the study session.
-        const wordList = decodedSearch.split(',').map(word => word.trim());
-        // Use the $in operator to find all documents where 'bangla' is in our list.
-        query = { bangla: { $in: wordList } };
-        results = await collection.find(query).toArray();
-
-      } else {
-        // This is a single-term search from the search bar.
-        // Use the decoded search term for the regex as well.
-        const searchRegex = new RegExp(escapeRegExp(decodedSearch), 'i'); 
-        query = { 
-          $or: [
-            { bangla: { $regex: searchRegex } },
-            { japanese: { $regex: searchRegex } },
-            { english: { $regex: searchRegex } }
-          ]
-        };
-        results = await collection.find(query).sort({ bangla: 1 }).toArray();
-      }
+      const searchRegex = new RegExp(escapeRegExp(decodedSearch), 'i'); 
+      query = { 
+        $or: [
+          { bangla: { $regex: searchRegex } },
+          { japanese: { $regex: searchRegex } },
+          { english: { $regex: searchRegex } }
+        ]
+      };
+      results = await collection.find(query).sort({ bangla: 1 }).toArray();
     
     } else if (lesson) {
-      // Lesson logic remains the same
+      // 3. Handle requests for a specific lesson
       query = { lesson: parseInt(lesson, 10) };
       results = await collection.find(query).sort({ bangla: 1 }).toArray();
     
     } else {
-      // All Words Logic remains the same
+      // 4. Default: Get all words (for homepage)
       results = await collection.find({}).sort({ bangla: 1 }).toArray();
     }
     
-    // Convert the array of documents back into the dictionary object format
+    // Convert the results array into the required dictionary object format
     const dictionaryObject = results.reduce((obj, item) => {
         obj[item.bangla] = {
             meaning: item.japanese || '',
