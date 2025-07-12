@@ -11,8 +11,8 @@
   "rewrites": [
     { "source": "/contact", "destination": "/developer.html" },
     { "source": "/developer", "destination": "/developer.html" },
-    { "source": "/lesson", "destination": "/lesson.html" },
-    { "source": "/study", "destination": "/study.html" },
+    { "source": "/lesson", "destination": "/lesson.html?_q=:query" },
+    { "source": "/study", "destination": "/study.html?_q=:query" },
     {
       "source": "/((?!api/|data/|assets/|images/).*)",
       "destination": "/index.html"
