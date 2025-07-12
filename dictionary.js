@@ -327,11 +327,14 @@ function startStudySession() {
 
     // 3. Navigate.
     if (window.matchMedia('(display-mode: standalone)').matches) {
+        // For installed PWAs
         window.location.href = studyUrl;
     } else {
+        // For regular browser tabs
         window.open(studyUrl, '_blank');
     }
     
+    // 4. Reset the selection mode on the current page.
     toggleSelectionMode(); 
 }
 
