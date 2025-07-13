@@ -516,97 +516,37 @@ function createWordCard(word) {
 }
 
 // UPDATED showExampleSentences function
-// In dictionary.js, REPLACE the old showExampleSentences function with this one.
-
 async function showExampleSentences(banglaWord) {
     const wordData = App.data.dictionary[banglaWord];
     if (!wordData) return;
 
-    // 1. GET BOTH JAPANESE AND ENGLISH TERMS FROM YOUR DATA STRUCTURE
     const japaneseSearchTerm = wordData.meaning.replace(/\[.*?\]|～|、/g, '').trim();
-    // Get English terms, handling cases where 'en' might not exist
-    const englishTranslations = wordData.en ? wordData.en.split(',').map(term => term.trim()) : [];
-
     const modal = App.elements.sentenceModal;
     const wordEl = modal.querySelector('#sentence-modal-word');
     const bodyEl = modal.querySelector('#sentence-modal-body');
 
-    // Display both potential search terms in the modal header
-    wordEl.textContent = `${japaneseSearchTerm} / ${englishTranslations.join(', ')}`;
+    wordEl.textContent = japaneseSearchTerm;
     bodyEl.innerHTML = '<p>Loading sentences...</p>';
     modal.style.display = 'flex';
 
     try {
-        // 2. FETCH SENTENCES FOR BOTH LANGUAGES CONCURRENTLY
-        // Note: This assumes your API can accept a 'lang' parameter (e.g., /api/sentences?term=...&lang=jp)
-        const jpPromise = fetch(`/api/sentences?term=${encodeURIComponent(japaneseSearchTerm)}&lang=jp`)
-            .then(res => res.ok ? res.json() : Promise.resolve([])) // Resolve to empty array on error
-            .catch(() => []); // Also catch network errors
-
-        const enPromise = englishTranslations.length > 0
-            ? fetch(`/api/sentences?term=${encodeURIComponent(englishTranslations[0])}&lang=en`)
-                .then(res => res.ok ? res.json() : Promise.resolve([]))
-                .catch(() => [])
-            : Promise.resolve([]); // If no English term, resolve with an empty array immediately
-
-        // Wait for both API calls to complete
-        const [japaneseSentences, englishSentences] = await Promise.all([jpPromise, enPromise]);
-
-        let relevantSentences = [];
-        let finalSearchTerm = japaneseSearchTerm;
-        let termLanguage = 'jp'; // 'jp' or 'en'
-
-        // 3. APPLY THE MATCHING LOGIC (JP FIRST, THEN EN)
-        if (japaneseSentences.length > 0) {
-            relevantSentences = japaneseSentences;
-        } else if (englishSentences.length > 0) {
-            // Loop through each English translation (e.g., "post office", "mail")
-            for (const phrase of englishTranslations) {
-                const wordsInPhrase = phrase.split(/\s+/); // Split into individual words
-                for (const word of wordsInPhrase) {
-                    // Check if this individual 'word' exists in any of the returned English sentences
-                    const foundSentence = englishSentences.find(s => 
-                        s.en && new RegExp(`\\b${escapeRegExp(word)}\\b`, 'i').test(s.en)
-                    );
-
-                    if (foundSentence) {
-                        relevantSentences = englishSentences;
-                        finalSearchTerm = word; // This is the specific word that matched
-                        termLanguage = 'en';
-                        break; // Found a match, exit inner loop
-                    }
-                }
-                if (relevantSentences.length > 0) break; // Found a match, exit outer loop
-            }
-        }
+        // Call the new sentences API
+        const response = await fetch(`/api/sentences?term=${encodeURIComponent(japaneseSearchTerm)}`);
+        if (!response.ok) throw new Error("Failed to fetch sentences.");
         
-        // 4. RENDER THE RESULTS
+        const relevantSentences = await response.json();
+
         if (relevantSentences.length === 0) {
-            bodyEl.innerHTML = `<p style="color: #ffcdd2;">No example sentences found for "${japaneseSearchTerm}" or "${englishTranslations.join(', ')}".</p>`;
+            bodyEl.innerHTML = `<p style="color: #ffcdd2;">No example sentences found for "${japaneseSearchTerm}".</p>`;
         } else {
-            // Create a case-insensitive regex to highlight the matched term
-            const highlightRegex = new RegExp(escapeRegExp(finalSearchTerm), 'gi');
-            let html = `<h2>Examples for "${finalSearchTerm}"</h2>`;
-
+            const highlightRegex = new RegExp(escapeRegExp(japaneseSearchTerm), 'g');
+            let html = `<h2>Examples for "${japaneseSearchTerm}"</h2>`;
             relevantSentences.forEach((s, index) => {
-                // Ensure s.jp, s.en, and s.bn exist to prevent errors
-                const jpText = s.jp || '';
-                const enText = s.en || '';
-                const bnText = s.bn || '';
-
-                // Highlight the correct sentence (Japanese or English)
-                const jpDisplay = termLanguage === 'jp' 
-                    ? jpText.replace(highlightRegex, (match) => `<strong>${match}</strong>`) 
-                    : jpText;
-                const enDisplay = termLanguage === 'en' 
-                    ? enText.replace(highlightRegex, (match) => `<strong>${match}</strong>`) 
-                    : enText;
-
+                const highlightedSentence = s.jp.replace(highlightRegex, `<strong>${japaneseSearchTerm}</strong>`);
                 html += `
                     <div class="sentence-entry">
-                        <p class="sentence-japanese">${index + 1}. ${jpDisplay} <span class="speak-icon" onclick="speakJapanese('${jpText.replace(/'/g, "\\'")}')">🔊</span></p>
-                        <p class="sentence-english">(${enDisplay})</p> <!-- ADDED ENGLISH LINE -->
-                        <p class="sentence-bangla">(${bnText})</p>
+                        <p class="sentence-japanese">${index + 1}. ${highlightedSentence} <span class="speak-icon" onclick="speakJapanese('${s.jp.replace(/'/g, "\\'")}')">🔊</span></p>
+                        <p class="sentence-bangla">(${s.bn})</p>
                     </div>
                 `;
             });
