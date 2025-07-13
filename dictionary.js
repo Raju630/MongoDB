@@ -540,7 +540,7 @@ async function showExampleSentences(banglaWord) {
         const englishPromise = fetch(`/api/sentences?term=${encodeURIComponent(englishSearchTerms[0])}&lang=en`)
             .then(res => res.ok ? res.json() : []);
 
-        // Await both promises to complete
+        // Await both promises to complete.
         const [japaneseSentences, englishSentences] = await Promise.all([japanesePromise, englishPromise]); [1, 8, 11]
 
         let relevantSentences = [];
