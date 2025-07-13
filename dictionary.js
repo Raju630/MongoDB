@@ -520,32 +520,74 @@ async function showExampleSentences(banglaWord) {
     const wordData = App.data.dictionary[banglaWord];
     if (!wordData) return;
 
-    const japaneseSearchTerm = wordData.meaning.replace(/\[.*?\]|～|、/g, '').trim();
+    // Sanitize Japanese and get English terms
+    const japaneseSearchTerm = wordData.meaning.jp.replace(/\[.*?\]|～|、/g, '').trim();
+    const englishSearchTerms = wordData.meaning.en.split(',').map(term => term.trim());
+
     const modal = App.elements.sentenceModal;
     const wordEl = modal.querySelector('#sentence-modal-word');
     const bodyEl = modal.querySelector('#sentence-modal-body');
 
-    wordEl.textContent = japaneseSearchTerm;
+    wordEl.textContent = `${japaneseSearchTerm} / ${englishSearchTerms.join(', ')}`;
     bodyEl.innerHTML = '<p>Loading sentences...</p>';
     modal.style.display = 'flex';
 
     try {
-        // Call the new sentences API
-        const response = await fetch(`/api/sentences?term=${encodeURIComponent(japaneseSearchTerm)}`);
-        if (!response.ok) throw new Error("Failed to fetch sentences.");
+        // Create promises for both Japanese and English sentence APIs
+        const japanesePromise = fetch(`/api/sentences?term=${encodeURIComponent(japaneseSearchTerm)}&lang=jp`)
+            .then(res => res.ok ? res.json() : []);
         
-        const relevantSentences = await response.json();
+        const englishPromise = fetch(`/api/sentences?term=${encodeURIComponent(englishSearchTerms[0])}&lang=en`)
+            .then(res => res.ok ? res.json() : []);
+
+        // Await both promises to complete
+        const [japaneseSentences, englishSentences] = await Promise.all([japanesePromise, englishPromise]); [1, 8, 11]
+
+        let relevantSentences = [];
+        let finalSearchTerm = japaneseSearchTerm;
+        let termLanguage = 'jp';
+
+        // Prioritize Japanese sentences if available
+        if (japaneseSentences.length > 0) {
+            relevantSentences = japaneseSentences;
+        } else if (englishSentences.length > 0) {
+            // If no Japanese sentences, check for English matches
+            for (const term of englishSearchTerms) {
+                const words = term.split(/\s+/); // Split phrase into words
+                for (const word of words) {
+                    const foundSentence = englishSentences.find(s => 
+                        new RegExp(`\\b${escapeRegExp(word)}\\b`, 'i').test(s.en)
+                    );
+                    if (foundSentence) {
+                        relevantSentences = englishSentences;
+                        finalSearchTerm = word; // This is the word that matched
+                        termLanguage = 'en';
+                        break;
+                    }
+                }
+                if (relevantSentences.length > 0) break;
+            }
+        }
 
         if (relevantSentences.length === 0) {
-            bodyEl.innerHTML = `<p style="color: #ffcdd2;">No example sentences found for "${japaneseSearchTerm}".</p>`;
+            bodyEl.innerHTML = `<p style="color: #ffcdd2;">No example sentences found for "${japaneseSearchTerm}" or "${englishSearchTerms.join(', ')}".</p>`;
         } else {
-            const highlightRegex = new RegExp(escapeRegExp(japaneseSearchTerm), 'g');
-            let html = `<h2>Examples for "${japaneseSearchTerm}"</h2>`;
+            const highlightRegex = new RegExp(escapeRegExp(finalSearchTerm), 'gi');
+            let html = `<h2>Examples for "${finalSearchTerm}"</h2>`;
+
             relevantSentences.forEach((s, index) => {
-                const highlightedSentence = s.jp.replace(highlightRegex, `<strong>${japaneseSearchTerm}</strong>`);
+                // Highlight either the Japanese or English sentence based on the match
+                const highlightedSentence = (termLanguage === 'jp')
+                    ? s.jp.replace(highlightRegex, `<strong>${finalSearchTerm}</strong>`)
+                    : s.en.replace(highlightRegex, `<strong>${finalSearchTerm}</strong>`);
+
+                const japaneseDisplay = (termLanguage === 'jp') ? highlightedSentence : s.jp;
+                const englishDisplay = (termLanguage === 'en') ? highlightedSentence : s.en;
+
                 html += `
                     <div class="sentence-entry">
-                        <p class="sentence-japanese">${index + 1}. ${highlightedSentence} <span class="speak-icon" onclick="speakJapanese('${s.jp.replace(/'/g, "\\'")}')">🔊</span></p>
+                        <p class="sentence-japanese">${index + 1}. ${japaneseDisplay} <span class="speak-icon" onclick="speakJapanese('${s.jp.replace(/'/g, "\\'")}')">🔊</span></p>
+                        <p class="sentence-english">(${englishDisplay})</p>
                         <p class="sentence-bangla">(${s.bn})</p>
                     </div>
                 `;
@@ -556,6 +598,11 @@ async function showExampleSentences(banglaWord) {
         console.error("Error fetching sentences:", error);
         bodyEl.innerHTML = `<p style="color: #ffcdd2;">Could not load sentences.</p>`;
     }
+}
+
+// Helper function to escape special characters for use in a regular expression
+function escapeRegExp(string) {
+    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 function escapeRegExp(string) {
     return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
